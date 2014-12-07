@@ -1,18 +1,2 @@
-'(({:phrase ["rural" "schools"], :tag "NP"}
-  {:phrase ["in"], :tag "PP"}
-  {:phrase ["Santiago"], :tag "NP"}
-  {:phrase ["of"], :tag "PP"}
-  {:phrase ["Chile"], :tag "NP"}))
-
-[{:name  "in"
-  :p-tag "PP"
-  :yield "-[:IN*]->"}
-
- {:name  "of"
-  :p-tag "PP"
-  :yield "-[:IN*]->"}]
-
-;; define multimethod driven by the type (symbol or string) of the elements in the :phrase
-;; the particular methods will map from the input to the yield format
-
-(symbol? 'hola)
+{:in {:PP "-[:IN*]->"}
+ :of {:PP "-[:IN*]->"}}

@@ -112,64 +112,40 @@
                       (sentences "Awarded architects in Santiago of Chile.
                                  Rural schools with more than fifty student."))))
    }
-  [text]
-  (let [reader-func (comp (partial map (comp chunker
-                                             pos-tag
-                                             tokenize))
-                          get-sentences)]
-    (reader-func text)))
+  [method text]
+  (let [read-one (comp method chunker pos-tag tokenize)
+        read-all (comp (partial map read-one) get-sentences)]
+    (read-all text)))
 
-; transforming
+(defn resolve-token
+  [token]
+  (if (Character/isUpperCase (first token))
+    {:name token}
+    (singular (keyword token))))
 
-;; ((["Rural"      "NNP"]     ->
-;;   ["schools"    "NNS"]
-;;   ["in"         "IN"]
-;;   ["Santiago"   "NNP"]
-;;   ["of"         "IN"]
-;;   ["Chile"      "NNP"]
-;;   ["."          "."]))
+(defn make-token-mapper
+  [p-tag]
+  (fn [token]
+    (let [token-key (keyword token)
+          p-tag-key (keyword p-tag)]
+      (if-let [g-data (-> @*schema* token-key p-tag-key)]
+        g-data
+        (resolve-token token)))))
 
-;; phrase hooks for {:phrase ["Rural" "schools"], :tag "NP"}
-;; "NP_rural_schools"
-;; "HEAD_NP_rural"
-;;
+(defn phrase-mapper
+  [phrase]
+  (let [token-mapper (make-token-mapper (:tag phrase))
+        tokens (:phrase phrase)]
+    (map token-mapper tokens)))
 
-(sentences "Rural in Santiago of Chile.")
+(defn sentence-mapper
+  [phrases]
+  (map phrase-mapper phrases))
 
-'(({:phrase ["Rural" "schools"], :tag "NP"}
-  {:phrase ["in"], :tag "PP"}
-  {:phrase ["Santiago"], :tag "NP"}
-  {:phrase ["of"], :tag "PP"}
-  {:phrase ["Chile"], :tag "NP"}))
+(sentences sentence-mapper "rural schools in Santiago of Chile.")
+"MATCH (a:Rural:School) -[:IN*]-> (b {name: \"Santiago\"}) -[:IN*]-> (c {name: \"Chile\"})"
 
-
-;; (([{:type "edge"
-;;     :labels ["awarded"]
-;;     :tag "JJ"},
-;;    {:type "node"
-;;     :labels ["architects"]
-;;     :tag "NNS"},
-;;    {:type: "edge"
-;;     :labels ["in"]
-;;     :tag "IN"},
-;;    {:type "node"
-;;     :name "Santiago"
-;;     :tag "NNS"},
-;;    {:type: "edge"
-;;     :labels ["of"]
-;;     :tag "IN"},
-;;    {:type "node"
-;;     :name "Chile"
-;;     :tag "NNS"}]))
-
-;; for-each-word
-;; (sen-ql :rural :school -in-> @santiago:location -in-> @chile:location)
-;; (sen-ql :rural :location <-in+- :school -in-> @santiago:location -in-> @chile:location)
-
-(sentences "Rural schools")
-
-(sentences "Malloco is a beautiful rural location in Central Chile.")
-
+(sentences sentence-mapper "rural schools with more than fifty students.")
 
 ; utils
 
