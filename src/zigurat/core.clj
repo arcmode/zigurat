@@ -9,6 +9,12 @@
             [inflections.core :refer [singular]]
             [clojure.string   :refer [capitalize]]))
 
+;;
+;; An atom to store the mapping from nlp domain to our data model
+;; It is `schema` the correct word?
+;;
+(def ^:dynamic *schema* (atom (read-string (slurp "schema/default-en.edn"))))
+
 (defn resolve-default
   {:test (fn []
            (assert (= {:name "Santiago"}
@@ -38,7 +44,7 @@
 (defn make-phrase-mapper
   {:test (fn []
            (assert (= '(["NP" "an"] ["NP" "air"] ["NP" "battle"])
-                      ((make-phrase-mapper (fn [a b](vector a b))) {:phrase ["an" "air" "battle"], :tag "NP"}))))}
+                       ((make-phrase-mapper (fn [a b] (vector a b))) {:phrase ["an" "air" "battle"], :tag "NP"}))))}
   [token-mapper]
   (fn [phrase]
     (let [tokens (:phrase phrase)

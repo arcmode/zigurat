@@ -1,34 +1,63 @@
 (ns zigurat.nlp
-  (:require [opennlp.nlp        :refer [make-sentence-detector
-                                        make-tokenizer
-                                        make-pos-tagger]]
-            [opennlp.tools.lazy :refer [lazy-chunk]]
-            [opennlp.treebank   :refer [make-treebank-chunker]]))
+  (:require [opennlp.treebank :refer [make-treebank-parser]]
+            [clojure.string   :refer [lower-case]]))
+
+;; macros
+(defmacro if-apply [subject test? then else]
+  `(if (~test? ~subject) (~then ~subject) (~else ~subject)))
 
 ;; OpenNLP tools
+(def treebank-parser (make-treebank-parser "models/en-parser-chunking.bin"))
 
-(def get-sentences (make-sentence-detector "models/en-sent.bin"))
-(def tokenize (make-tokenizer "models/en-token.bin"))
-(def pos-tag (make-pos-tagger "models/en-pos-maxent.bin"))
-(def chunker (make-treebank-chunker "models/en-chunker.bin"))
+(defprotocol NLP
+  "Natural Language Processing tools."
+  (top [nlp-node] "top")
+  (jj [nlp-node] "jj"))
 
-;; tagging
+(deftype NLPNode [path token-name]
+  Object
+  (toString [node] token-name)
+  NLP
+  (top [node] node)
+  (jj [node] node))
 
-(defn read-raw
-  {:doc "Applies `tokenize` and `postag` to each sentence returned by `get-sentences`"
-   :test (fn []
-           (assert (= '(({:phrase ["[last" "words" ","], :tag "NP"}
-                         {:phrase ["turning"], :tag "VP"}
-                         {:phrase ["on"], :tag "PP"}
-                         {:phrase ["Clu"], :tag "NP"}
-                         {:phrase ["during"], :tag "PP"}
-                         {:phrase ["an" "air" "battle"], :tag "NP"}
-                         {:phrase ["]"], :tag "PP"}
-                         {:phrase ["I"], :tag "NP"}
-                         {:phrase ["fight"], :tag "VP"}
-                         {:phrase ["for"], :tag "PP"}
-                         {:phrase ["the" "Users"], :tag "NP"}))
-                      (read-raw ["[last words, turning on Clu during an air battle]
-                                 I fight for the Users!"]))))}
-  [text]
-  (lazy-chunk text tokenize pos-tag chunker))
+(def sym->NLPNode (comp (partial ->NLPNode []) name))
+
+(declare ^:private read-node)
+
+(defn name-node [node]
+  (symbol (lower-case (name node))))
+
+(defn read-tree [[node & children]]
+  (lazy-seq (conj (map read-node children) (name-node node))))
+
+(defn- read-node [node]
+  (if-apply node seq? read-tree sym->NLPNode))
+
+(def tree-maker (partial map (comp read-tree read-string)))
+
+(def tree-parser (comp vec tree-maker treebank-parser))
+
+;; (evaluable-tree (TOP (NP rural)))
+;; (defmacro evaluable-tree
+;;   [form]
+;;    `(read-tree '~form))
+
+(time
+ (let [x ["rural schools in Santiago of Chile."]]
+   (dotimes [_ 100]
+     (tree-parser x))))
+
+(-> ["rural"]
+    tree-parser)
+
+(top (jj (->NLPNode [] "rural")))
+
+(identity (->NLPNode [] "rural"))
+
+(->> ["rural"]
+    tree-parser
+    first)
+
+(->> ["rural schools in Santiago of Chile"]
+     treebank-parser)
