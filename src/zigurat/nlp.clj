@@ -24,38 +24,43 @@
 
 (def str->tree (comp read-tree read-string))
 
-(def tree-maker (partial map str->tree))
+(def make-tree (partial map str->tree))
 
-(def tree-parser (comp vec tree-maker treebank-parser))
+(def parse-tree (comp vec make-tree treebank-parser))
+
+(def realize-tree (comp (partial map eval) parse-tree))
 
 ;; building the graph of facts
 
-(defprotocol GraphElement
+;; [todo] split into graph, edge and node protocols
+(defprotocol ReactiveGraphElement
   (bond-with-node [elem node])
   (bond-with-edge [elem edge])
   (bond-graph-to-node [elem graph node])
   (bond-graph-to-edge [elem graph edge]))
 
-(defprotocol NLPNode
-  "A protocol for nlp nodes.
-
+(defprotocol Grammar
+  "A protocol for nlp graphs.
   Each method takes a number of nodes|edges|graphs."
-  (top [node])
+  (top [graph]))
+
+(defprotocol Noun
+  "A protocol for nlp nodes.
+  Each method takes a number of nodes|edges|graphs."
   (np  [node]
        [node elem]))
 
-(defprotocol NLPEdge
+(defprotocol Preposition
   "A protocol for nlp edges.
-
   Each method takes a number of nodes|edges|graphs."
   (pp  [a b]))
 
 (defrecord Edge [id labels attrs from to]
-  NLPEdge
+  Preposition
   (pp [edge elem]
       (bond-with-edge elem edge))
 
-  GraphElement
+  ReactiveGraphElement
   (bond-with-node [edge node]
                   (bond-with-edge node edge))
   (bond-graph-to-node [edge graph node]
@@ -67,19 +72,22 @@
                         new-graph)))
 
 (defrecord Graph [link nodes edges]
-  GraphElement
+  ReactiveGraphElement
   (bond-with-node [graph node]
                   (bond-graph-to-node (:link graph) graph node))
   (bond-with-edge [graph edge]
-                  (bond-graph-to-edge (:link graph) graph edge)))
+                  (bond-graph-to-edge (:link graph) graph edge))
+
+  Grammar
+  (top [graph] graph))
 
 (defrecord Node [id labels attrs in out]
-  NLPNode
+  Noun
   (np  [node] node)
   (np  [node elem]
        (bond-with-node elem node))
 
-  GraphElement
+  ReactiveGraphElement
   (bond-with-node [node other-node]
                   (let [new-labels (union (:labels node) (:labels other-node))
                         new-attrs (merge (:attrs node) (:attrs other-node))
@@ -147,16 +155,31 @@
                 (np (nnp "Chile"))))))
 
 
-;; (top (np (np (jj "rural")
-;;              (nns "schools"))
-;;          (pp (in "in")
-;;              (np (np (nnp "Santiago"))
-;;                  (pp (in "of")
-;;                      (np (nnp "Chile")))))))
+(top (np (np (jj "rural")
+             (nns "schools"))
+         (pp (in "in")
+             (np (np (nnp "Santiago"))
+                 (pp (in "of")
+                     (np (nnp "Chile")))))))
 
+
+
+(realize-tree ["rural schools in Santiago of Chile"])
+
+(class (realize-tree ["rural schools in Santiago of Chile"]))
 
 (time
- (let [x ["Malloco is a rural location in Central Chile" "rural schools in Santiago of Chile"]]
+ (let [x ["rural schools in Santiago of Chile"]]
+   (dotimes [_ 100]
+     (realize-tree x))))
+
+(time
+ (let [x (parse-tree ["rural schools in Santiago of Chile"])]
+   (dotimes [_ 100]
+     (map eval x))))
+
+(time
+ (let [x ["rural schools in Santiago of Chile"]]
    (dotimes [_ 100]
      (np (np (jj "rural")
              (nns "schools"))
@@ -165,28 +188,28 @@
                  (pp (in "of")
                      (np (nnp "Chile")))))))))
 
-(time
- (let [x ["Malloco is a rural location in Central Chile" "rural schools in Santiago of Chile"]]
-   (dotimes [_ 100]
-     (eval '(np (np (jj "rural")
-                    (nns "schools"))
-                (pp (in "in")
-                    (np (np (nnp "Santiago"))
-                        (pp (in "of")
-                            (np (nnp "Chile"))))))))))
+;; (time
+;;  (let [x ["Malloco is a rural location in Central Chile" "rural schools in Santiago of Chile"]]
+;;    (dotimes [_ 100]
+;;      (eval-tree '(np (np (jj "rural")
+;;                     (nns "schools"))
+;;                 (pp (in "in")
+;;                     (np (np (nnp "Santiago"))
+;;                         (pp (in "of")
+;;                             (np (nnp "Chile"))))))))))
 
 
 ;; (time
 ;;  (let [x ["Malloco is a rural location in Central Chile" "rural schools in Santiago of Chile"]]
 ;;    (dotimes [_ 100]
-;;      (eval (tree-parser x)))))
+;;      (eval (parse-tree x)))))
 
 (-> ["rural schools in Santiago of Chile"]
-    tree-parser
+    parse-tree
     )
 
 (-> ["rural schools in Santiago of Chile having more than five teachers with a PHD"]
-    tree-parser
+    parse-tree
     )
 
 ;; (top (np (np (jj "rural")
@@ -251,6 +274,6 @@
 
 
 ;; (->> ["rural"]
-;;     tree-parser
+;;     parse-tree
 ;;      eval)
 
