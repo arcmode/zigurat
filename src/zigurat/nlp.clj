@@ -39,7 +39,9 @@
 
 (defprotocol GraphElement
   (bond-with-node [elem node])
-  (bond-with-edge [elem edge]))
+  (bond-with-edge [elem edge])
+  (bond-graph-to-node [elem graph node])
+  (bond-graph-to-edge [elem graph edge]))
 
 (defprotocol NLPNode
   "A protocol for nlp nodes.
@@ -65,7 +67,7 @@
 ;;   )
 
 
-(defrecord Edge [labels attrs from to]
+(defrecord Edge [id labels attrs from to]
   Object
   (toString [edge] (str labels " " attrs))
 
@@ -75,14 +77,23 @@
 
   GraphElement
   (bond-with-node [edge node]
-                  (bond-with-edge node edge)))
+                  (bond-with-edge node edge))
+  (bond-graph-to-node [edge graph node]
+                      (let [new-node (assoc node :out (conj (:out node) (:id edge)))
+                            new-edge (assoc edge :from (conj (:from edge) (:id node)))
+                            new-nodes (assoc (:nodes graph) (:id new-node) new-node)
+                            new-edges (assoc (:edges graph) (:id new-edge) new-edge)
+                            new-graph (assoc graph :link new-node :nodes new-nodes :edges new-edges)]
+                        new-graph)))
 
 (defrecord Graph [link nodes edges]
   GraphElement
   (bond-with-node [graph node]
-                  "hola"))
+                  (bond-graph-to-node (:link graph) graph node))
+  (bond-with-edge [graph edge]
+                  (bond-graph-to-edge (:link graph) graph edge)))
 
-(defrecord Node [labels attrs in out]
+(defrecord Node [id labels attrs in out]
   Object
   (toString [edge] (str labels " " attrs))
 
@@ -92,49 +103,82 @@
        (bond-with-node elem node))
 
   GraphElement
-  (bond-with-node [node other_node]
-                  (merge-with union other_node node))
+  (bond-with-node [node other-node]
+                  (let [new-labels (union (:labels node) (:labels other-node))
+                        new-attrs (merge (:attrs node) (:attrs other-node))
+                        new-in (union (:in node) (:in other-node))
+                        new-out (union (:out node) (:out other-node))]
+                    (assoc other-node
+                      :labels new-labels
+                      :attrs new-attrs
+                      :in new-in
+                      :out new-out)))
   (bond-with-edge [node edge]
-                  (let [node-id (gensym "n")
-                        edge-id (gensym "e")
-                        new-node (assoc node :id node-id :out #{edge-id})
-                        new-edge (assoc edge :id edge-id :from #{node-id})]
-                    (->Graph edge
+                  (let [node-id (:id node)
+                        edge-id (:id edge)
+                        new-node (assoc node :id node-id :in #{edge-id})
+                        new-edge (assoc edge :id edge-id :to #{node-id})]
+                    (->Graph new-edge
                              {node-id new-node}
-                             {edge-id new-edge}))))
+                             {edge-id new-edge})))
+  (bond-graph-to-edge [node graph edge]
+                      (let [new-node (assoc node :in (conj (:in node) (:id edge)))
+                            new-edge (assoc edge :to (conj (:to edge) (:id node)))
+                            new-nodes (assoc (:nodes graph) (:id new-node) new-node)
+                            new-edges (assoc (:edges graph) (:id new-edge) new-edge)
+                            new-graph (assoc graph :link new-edge :nodes new-nodes :edges new-edges)]
+                        new-graph)))
 
 ;; building the graph
 
-(defn jj  [token] (->Node #{token} {} #{} #{}))
-(defn nns [token] (->Node #{token} {} #{} #{}))
-(defn in  [token] (->Edge #{:in} {} #{} #{}))
-(defn nnp [token] (->Node #{} {:name token} #{} #{}))
+(defn jj  [token] (->Node (gensym "n") #{token} {} #{} #{}))
+(defn nns [token] (->Node (gensym "n") #{token} {} #{} #{}))
+(defn in  [token] (->Edge (gensym "e") #{:in} {} #{} #{}))
+(defn nnp [token] (->Node (gensym "n") #{} {:name token} #{} #{}))
 
 
-(np (->Node #{:location} {:name "Chile"} #{} #{})
-    (->Node #{:country} {:alias "Chilito"} #{} #{}))
+(->Node (gensym "n") #{:location} {:name "Chile"}  #{} #{})
+(->Node (gensym "n") #{:country} {:alias "Chilito"} #{} #{})
 
+(np (->Node (gensym "n") #{:location} {:name "Chile"}  #{} #{})
+    (->Node (gensym "n") #{:country} {:alias "Chilito"} #{} #{}))
 
 (in "of")
+
 (np (nnp "Chile"))
 
-(pp (in "of") (np (nnp "Chile")))
 (np (nnp "Santiago"))
 
-(np (nnp "Santiago")) (pp (in "of") (np (nnp "Chile")))
+(np (nnp "Santiago"))
 
+(pp (in "of") (np (nnp "Chile")))
 
 (np (np (nnp "Santiago"))
     (pp (in "of")
         (np (nnp "Chile"))))
 
+(pp (in "in")
+    (np (np (nnp "Santiago"))
+        (pp (in "of")
+            (np (nnp "Chile")))))
 
-(top (np (np (jj "rural")
-             (nns "schools"))
-         (pp (in "in")
-             (np (np (nnp "Santiago"))
-                 (pp (in "of")
-                     (np (nnp "Chile")))))))
+(np (jj "rural")
+  (nns "schools"))
+
+(np (np (jj "rural")
+        (nns "schools"))
+    (pp (in "in")
+        (np (np (nnp "Santiago"))
+            (pp (in "of")
+                (np (nnp "Chile"))))))
+
+
+;; (top (np (np (jj "rural")
+;;              (nns "schools"))
+;;          (pp (in "in")
+;;              (np (np (nnp "Santiago"))
+;;                  (pp (in "of")
+;;                      (np (nnp "Chile")))))))
 
 
 ;; (time
