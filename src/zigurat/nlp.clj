@@ -11,7 +11,7 @@
 ;; OpenNLP tools
 (def treebank-parser (make-treebank-parser "models/en-parser-chunking.bin"))
 
-;; building the tree
+;; building the semantic tree
 
 (declare ^:private read-node)
 
@@ -28,14 +28,7 @@
 
 (def tree-parser (comp vec tree-maker treebank-parser))
 
-;; (defprotocol NLPElemProtocol
-;;   "A protocol for primitive nlp elements.
-
-;;   Each method takes a string and returns either a node or edge."
-;;   (in  [a])
-;;   (jj  [a])
-;;   (nns [a])
-;;   (nnp [a]))
+;; building the graph of facts
 
 (defprotocol GraphElement
   (bond-with-node [elem node])
@@ -55,22 +48,9 @@
   "A protocol for nlp edges.
 
   Each method takes a number of nodes|edges|graphs."
-  (pp  [a b])
-  ;(bond-with-node [a b])
-  )
-
-;; (defprotocol NLPGraph
-;;   "A protocol for nlp graphs.
-
-;;   Each method takes a number of nodes|edges|graphs."
-;;   (bond-with-node [a b])
-;;   )
-
+  (pp  [a b]))
 
 (defrecord Edge [id labels attrs from to]
-  Object
-  (toString [edge] (str labels " " attrs))
-
   NLPEdge
   (pp [edge elem]
       (bond-with-edge elem edge))
@@ -94,9 +74,6 @@
                   (bond-graph-to-edge (:link graph) graph edge)))
 
 (defrecord Node [id labels attrs in out]
-  Object
-  (toString [edge] (str labels " " attrs))
-
   NLPNode
   (np  [node] node)
   (np  [node elem]
@@ -137,9 +114,6 @@
 (defn nnp [token] (->Node (gensym "n") #{} {:name token} #{} #{}))
 
 
-(->Node (gensym "n") #{:location} {:name "Chile"}  #{} #{})
-(->Node (gensym "n") #{:country} {:alias "Chilito"} #{} #{})
-
 (np (->Node (gensym "n") #{:location} {:name "Chile"}  #{} #{})
     (->Node (gensym "n") #{:country} {:alias "Chilito"} #{} #{}))
 
@@ -179,6 +153,27 @@
 ;;              (np (np (nnp "Santiago"))
 ;;                  (pp (in "of")
 ;;                      (np (nnp "Chile")))))))
+
+
+(time
+ (let [x ["Malloco is a rural location in Central Chile" "rural schools in Santiago of Chile"]]
+   (dotimes [_ 100]
+     (np (np (jj "rural")
+             (nns "schools"))
+         (pp (in "in")
+             (np (np (nnp "Santiago"))
+                 (pp (in "of")
+                     (np (nnp "Chile")))))))))
+
+(time
+ (let [x ["Malloco is a rural location in Central Chile" "rural schools in Santiago of Chile"]]
+   (dotimes [_ 100]
+     (eval '(np (np (jj "rural")
+                    (nns "schools"))
+                (pp (in "in")
+                    (np (np (nnp "Santiago"))
+                        (pp (in "of")
+                            (np (nnp "Chile"))))))))))
 
 
 ;; (time
