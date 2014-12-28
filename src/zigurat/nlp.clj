@@ -1,6 +1,5 @@
 (ns zigurat.nlp
-  (:require [opennlp.treebank :refer [make-treebank-parser
-                                      make-treebank-linker]]
+  (:require [opennlp.treebank :refer [make-treebank-parser]]
             [clojure.string   :refer [lower-case]]
             [clojure.set      :refer [union]]))
 
@@ -33,34 +32,27 @@
 ;; building the graph of facts
 
 ;; [todo] split into graph, edge and node protocols
-(defprotocol ReactiveGraphElement
+(defprotocol ReactiveGraph
+  "A protocol for reactive graphs."
   (bond-with-node [elem node])
   (bond-with-edge [elem edge])
   (bond-graph-to-node [elem graph node])
   (bond-graph-to-edge [elem graph edge]))
 
+;; [todo] split into categories
 (defprotocol Grammar
-  "A protocol for nlp graphs.
-  Each method takes a number of nodes|edges|graphs."
-  (top [graph]))
+  "A protocol for grammars."
+  (top [phrase])
+  (np  [phrase]
+       [phrase-a phrase-b])
+  (pp  [phrase-a phrase-b]))
 
-(defprotocol Noun
-  "A protocol for nlp nodes.
-  Each method takes a number of nodes|edges|graphs."
-  (np  [node]
-       [node elem]))
-
-(defprotocol Preposition
-  "A protocol for nlp edges.
-  Each method takes a number of nodes|edges|graphs."
-  (pp  [a b]))
-
-(defrecord Edge [id labels attrs from to]
-  Preposition
+(defrecord SemGraphEdge [id labels attrs from to]
+  Grammar
   (pp [edge elem]
       (bond-with-edge elem edge))
 
-  ReactiveGraphElement
+  ReactiveGraph
   (bond-with-node [edge node]
                   (bond-with-edge node edge))
   (bond-graph-to-node [edge graph node]
@@ -71,23 +63,23 @@
                             new-graph (assoc graph :link new-node :nodes new-nodes :edges new-edges)]
                         new-graph)))
 
-(defrecord Graph [link nodes edges]
-  ReactiveGraphElement
+(defrecord SemGraph [link nodes edges]
+  Grammar
+  (top [graph] graph)
+
+  ReactiveGraph
   (bond-with-node [graph node]
                   (bond-graph-to-node (:link graph) graph node))
   (bond-with-edge [graph edge]
-                  (bond-graph-to-edge (:link graph) graph edge))
+                  (bond-graph-to-edge (:link graph) graph edge)))
 
+(defrecord SemGraphNode [id labels attrs in out]
   Grammar
-  (top [graph] graph))
-
-(defrecord Node [id labels attrs in out]
-  Noun
   (np  [node] node)
   (np  [node elem]
        (bond-with-node elem node))
 
-  ReactiveGraphElement
+  ReactiveGraph
   (bond-with-node [node other-node]
                   (let [new-labels (union (:labels node) (:labels other-node))
                         new-attrs (merge (:attrs node) (:attrs other-node))
@@ -103,7 +95,7 @@
                         edge-id (:id edge)
                         new-node (assoc node :id node-id :in #{edge-id})
                         new-edge (assoc edge :id edge-id :to #{node-id})]
-                    (->Graph new-edge
+                    (->SemGraph new-edge
                              {node-id new-node}
                              {edge-id new-edge})))
   (bond-graph-to-edge [node graph edge]
@@ -116,14 +108,14 @@
 
 ;; building the graph
 
-(defn jj  [token] (->Node (gensym "n") #{token} {} #{} #{}))
-(defn nns [token] (->Node (gensym "n") #{token} {} #{} #{}))
-(defn in  [token] (->Edge (gensym "e") #{:in} {} #{} #{}))
-(defn nnp [token] (->Node (gensym "n") #{} {:name token} #{} #{}))
+(defn jj  [word] (->SemGraphNode (gensym "n") #{word} {} #{} #{}))
+(defn nns [word] (->SemGraphNode (gensym "n") #{word} {} #{} #{}))
+(defn in  [word] (->SemGraphEdge (gensym "e") #{:in} {} #{} #{}))
+(defn nnp [word] (->SemGraphNode (gensym "n") #{} {:name word} #{} #{}))
 
 
-(np (->Node (gensym "n") #{:location} {:name "Chile"}  #{} #{})
-    (->Node (gensym "n") #{:country} {:alias "Chilito"} #{} #{}))
+(np (->SemGraphNode (gensym "n") #{:location} {:name "Chile"}  #{} #{})
+    (->SemGraphNode (gensym "n") #{:country} {:alias "Chilito"} #{} #{}))
 
 (in "of")
 
@@ -204,13 +196,35 @@
 ;;    (dotimes [_ 100]
 ;;      (eval (parse-tree x)))))
 
-(-> ["rural schools in Santiago of Chile"]
+(-> ["rural schools in Santiago of Chile ."]
     parse-tree
     )
 
-(-> ["rural schools in Santiago of Chile having more than five teachers with a PHD"]
+(-> ["rural schools in Santiago of Chile having more than five teachers with a PHD ."]
     parse-tree
     )
+
+(-> ["A pizza with lots of pepperoni, pineapple, capsicum, mushrooms, anchovies, olives, and vegemite ."]
+    parse-tree)
+
+(comment
+(top (s (s (s (np (prp "He"))
+              (vp (vbd "ate")
+                  (np (dt "a")
+                      (nn "pizza"))
+                  (pp (in "with")
+                      (np (np (nns "lots"))
+                          (pp (in "of")
+                              (np (nn "pepperoni")
+                                  (nn "pineapple")
+                                  (nn "capsicum")))))))
+           (vp (md "mushrooms")
+               (vp (vb "anchovies")
+                   (adjp (jj "olives")))))
+        (cc "and")
+        (s (np (nn "vegemite")))
+        (. ".")))
+)
 
 ;; (top (np (np (jj "rural")
 ;;              (nns "schools"))
@@ -276,4 +290,3 @@
 ;; (->> ["rural"]
 ;;     parse-tree
 ;;      eval)
-
