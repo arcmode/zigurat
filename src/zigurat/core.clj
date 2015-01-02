@@ -28,6 +28,11 @@
    (dotimes [_ 1000000]
      (map eval x))))
 
+(time
+ (let [x ["rural schools in Santiago of Chile"]]
+   (dotimes [_ 10]
+     (map eval (parse-tree x)))))
+
 
 
 (comment
