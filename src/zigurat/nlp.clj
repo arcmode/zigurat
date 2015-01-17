@@ -1,9 +1,8 @@
 (ns zigurat.nlp
   (:require
-   [opennlp.treebank   :refer [make-treebank-parser]]
-   [clojure.string     :refer [lower-case]]
-   [zigurat.types.word :refer [->Word]]
-   [clojure.pprint     :refer [pprint]]))
+   [opennlp.treebank :refer [make-treebank-parser]]
+   [clojure.string   :refer [lower-case]]
+   [clojure.pprint   :refer [pprint]]))
 
 ;; simpler flow control
 (defmacro if-apply
@@ -19,18 +18,14 @@
 
 (def name-node (comp symbol lower-case name))
 
-(defn leaf-to-word-expr
-  [leaf]
-  `(->Word ~(name leaf)))
-
-;; todo : refactor to a `make-tree-reader` internalizing `read-node`
+;; [todo] refactor to a `make-tree-reader` internalizing `read-node`
 (defn read-tree
   [[node & children]]
   (lazy-seq (conj (map read-node children) (name-node node))))
 
 (defn- read-node
   [node]
-  (if-apply node seq? read-tree leaf-to-word-expr))
+  (if-apply node seq? read-tree identity))
 
 (def str->tree (comp read-tree read-string))
 
@@ -42,13 +37,25 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 (treebank-parser ["rural schools located in coastal cities of Chile and with more than fifty students"]
-)
+                 )
 
 
 (comment
 
-(TOP (S (NP (JJ rural)
+  (TOP (S (NP (JJ rural)
             (NNS schools))
         (VP (VP (VBN located)
                 (PP (IN in)

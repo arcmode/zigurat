@@ -13,10 +13,9 @@
   (pp  [p1 p2])
   (qp  [jjr in cd])
 
-  (jj  [w])
-  (nns [w])
-  (in  [w])
-  (nnp [w])
-  (cc  [w])
-  (vbn [w])
-  (jjr [w]))
+  (in->pp [np in])
+  (jj->np [nns jj]))
+
+
+(defprotocol Token
+  (get-token [x]))
