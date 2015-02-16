@@ -11,28 +11,28 @@
   ReactiveGraph
   (bind-node-to-source
    [graph node]
-   (let [link-edge   (get-edge link)
-         new-edge-id (:id link-edge)
+   (let [link-id     (second link)
+         link-edge   (get-edge (link-id edges))
          new-node-id (:id node)
-         new-node    (update-in node      [:out]  conj new-edge-id)
+         new-node    (update-in node      [:out]  conj link-id)
          new-edge    (update-in link-edge [:from] conj new-node-id)
          new-nodes   (assoc nodes new-node-id new-node)
-         new-edges   (assoc edges new-edge-id new-edge)
-         new-link    new-node]
+         new-edges   (assoc edges link-id     new-edge)
+         new-link    [:nodes new-node-id]]
      (assoc graph :link new-link :nodes new-nodes :edges new-edges)))
   (get-node
    [graph]
-   (get-node link))
+   (get-node ((second link) nodes)))
   (bind-incoming-edge
    [graph edge]
-   (let [link-node   (get-node link)
-         new-node-id (:id link-node)
+   (let [link-id     (second link)
+         link-node   (get-node (link-id nodes))
          new-edge-id (:id edge)
-         new-edge    (update-in edge      [:to] conj new-node-id)
+         new-edge    (update-in edge      [:to] conj link-id)
          new-node    (update-in link-node [:in] conj new-edge-id)
-         new-nodes   (assoc nodes new-node-id new-node)
+         new-nodes   (assoc nodes link-id     new-node)
          new-edges   (assoc edges new-edge-id new-edge)
-         new-link    new-edge]
+         new-link    [:edges new-edge-id]]
      (assoc graph :link new-link :nodes new-nodes :edges new-edges))))
 
 (defrecord SemanticGraphEdge [id labels attrs from to]
@@ -51,7 +51,7 @@
    (let [new-edge-id (:id edge)
          new-edge    (update-in edge [:to] conj id)
          new-node    (update-in node [:in] conj new-edge-id)
-         link         new-edge
          nodes       {id new-node}
-         edges       {new-edge-id new-edge}]
+         edges       {new-edge-id new-edge}
+         link        [:edges new-edge-id]]
      (->SemanticGraph link nodes edges))))
