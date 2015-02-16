@@ -1,7 +1,7 @@
 (ns zigurat.core-test
   (:require [clojure.test :refer [run-tests]]
             [zigurat.nlp  :refer [parse-tree]]
-            [zigurat.core :refer [realize-tree]]))
+            [zigurat.core :refer :all]))
 
 (run-tests 'zigurat.core)
 

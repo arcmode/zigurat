@@ -12,6 +12,17 @@
 (def map-eval (partial map eval))
 (def realize-tree (comp map-eval parse-tree))
 
+;;
+;; Graph utils
+;;
+
+(defn make-isolated-node
+  [labels attrs]
+  (->SemanticGraphNode (gensym "n") labels attrs #{} #{}))
+
+(defn make-edge
+  [labels attrs from to]
+  (->SemanticGraphEdge (gensym "e") labels attrs from to))
 
 ;;
 ;; Word Level
@@ -26,7 +37,6 @@
 (defmacro nns [word] `(->NNS ~(name word)))
 (defmacro in  [word] `(->IN  ~(name word)))
 (defmacro nnp [word] `(->NNP ~(name word)))
-
 
 ;;
 ;; Phrase Level
@@ -51,23 +61,13 @@
 (defmethod np
   [zigurat.core.JJ zigurat.core.NNS]
   [jj nns]
-  (let [node-id (gensym "n")
-        labels  #{(:token jj) (:token nns)}
-        attrs   {}
-        in      #{}
-        out     #{}
-        node    (->SemanticGraphNode node-id labels attrs in out)]
+  (let [node (make-isolated-node #{(:token jj) (:token nns)} {})]
     (->NP node)))
 
 (defmethod np
   [zigurat.core.NNP]
   [nnp]
-  (let [node-id (gensym "n")
-        labels  #{}
-        attrs   {:name (:token nnp)}
-        in      #{}
-        out     #{}
-        node    (->SemanticGraphNode node-id labels attrs in out)]
+  (let [node (make-isolated-node #{} {:name (:token nnp)})]
     (->NP node)))
 
 (defmethod np
@@ -80,11 +80,6 @@
   [in np]
   (let [np-data   (:data np)
         link-node (get-node np-data)
-        edge-id   (gensym "e")
-        labels    #{(:token in)}
-        attrs     {}
-        from      #{}
-        to        #{(:id link-node)}
-        edge      (->SemanticGraphEdge edge-id labels attrs from to)
+        edge      (make-edge #{(:token in)} {} #{} #{(:id link-node)})
         graph     (bind-incoming-edge np-data edge)]
     (->PP graph)))
