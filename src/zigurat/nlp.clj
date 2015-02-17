@@ -1,8 +1,6 @@
 (ns zigurat.nlp
-  (:require
-   [opennlp.treebank :refer [make-treebank-parser]]
-   [clojure.string   :refer [lower-case]]
-   [clojure.pprint   :refer [pprint]]))
+  (:require [opennlp.treebank :refer [make-treebank-parser]]
+            [clojure.string   :refer [lower-case]]))
 
 ;; simpler flow control
 (defmacro if-apply
@@ -25,7 +23,7 @@
 
 (defn- read-node
   [node]
-  (if-apply node seq? read-tree identity))
+  (if-apply node seq? read-tree name))
 
 (def str->tree (comp read-tree read-string))
 

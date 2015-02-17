@@ -1,7 +1,12 @@
-(ns zigurat.types.sem-graph
-  (:require
-   [zigurat.protocols.react-graph :refer :all]
-   [clojure.set                   :refer [union]]))
+(ns zigurat.graph)
+
+;; [todo] split into graph, edge and node protocols
+(defprotocol ReactiveGraph
+  "A protocol for reactive graphs."
+  (get-node            [elem])
+  (get-edge            [elem])
+  (bind-node-to-source [elem node])
+  (bind-incoming-edge  [elem edge]))
 
 ;;
 ;; Semantic Graph Elements
@@ -55,3 +60,15 @@
          edges       {new-edge-id new-edge}
          link        [:edges new-edge-id]]
      (->SemanticGraph link nodes edges))))
+
+;;
+;; helpers
+;;
+
+(defn make-isolated-node
+  [labels attrs]
+  (->SemanticGraphNode (gensym "n") labels attrs #{} #{}))
+
+(defn make-edge
+  [labels attrs from to]
+  (->SemanticGraphEdge (gensym "e") labels attrs from to))
