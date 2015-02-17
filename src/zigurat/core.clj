@@ -33,6 +33,10 @@
 (defrecord IN  [token])
 (defrecord NNP [token])
 
+;;
+;; helper macros
+;;
+
 (defmacro jj  [word] `(->JJ  ~(name word)))
 (defmacro nns [word] `(->NNS ~(name word)))
 (defmacro in  [word] `(->IN  ~(name word)))
