@@ -72,3 +72,36 @@
 (defn make-edge
   [labels attrs from to]
   (->SemanticGraphEdge (gensym "e") labels attrs from to))
+
+
+;;
+;; Macros
+;;
+
+;;
+;;(build-path
+;;  (:rural :school) -[:in]-> (Santiago :location) -[:of]-> (Chile :location))
+;;
+
+(defmulti  dispatch-value class)
+(defmethod dispatch-value clojure.lang.Symbol [sym] sym)
+(defmethod dispatch-value :default            [other] (class other))
+
+(defmulti  parse-path (partial map dispatch-value))
+(defmethod parse-path
+  [clojure.lang.PersistentList]
+  [_]
+  :node)
+(defmethod parse-path
+  [clojure.lang.PersistentList '- clojure.lang.PersistentVector '-> clojure.lang.PersistentList]
+  [a] :a-triple)
+
+(defmacro build-path [& body] (parse-path body))
+;;(defmacro build-path [& body] `(parse-path '~body))
+
+
+(build-path
+ (:rural :school) -[:in]-> (Santiago :location))
+
+(macroexpand-1 '(defmethod id [x] (build-path
+ (:rural :school) -[:in]-> (Santiago :location))))

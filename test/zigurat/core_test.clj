@@ -2,8 +2,9 @@
   (:require [clojure.test :refer [run-tests]]
             [zigurat.nlp  :refer [parse-tree]]
             [zigurat.core :refer [realize-tree
-                                  top np pp
-                                  jj nns nnp in]]))
+                                  top np  pp
+                                  jj  nns nnp in]]
+            [clojure.pprint :refer [pprint]]))
 
 (run-tests 'zigurat.core)
 
@@ -11,9 +12,9 @@
 ;; Sandbox
 ;;
 
- (parse-tree ["rural schools in Santiago of Chile"])
+(pprint (parse-tree ["rural schools in Santiago of Chile"]))
 
- (realize-tree ["rural schools in Santiago of Chile"])
+(pprint (realize-tree ["rural schools in Santiago of Chile"]))
 
 
 ;;(time

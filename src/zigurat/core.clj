@@ -8,7 +8,7 @@
             [zigurat.word]
             [zigurat.phrase]))
 
-(def map-eval (partial map eval))
+(def map-eval     (partial map eval))
 (def realize-tree (comp map-eval zigurat.nlp/parse-tree))
 
 (defmacro pull [ns vlist]
