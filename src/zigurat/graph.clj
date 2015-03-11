@@ -1,4 +1,5 @@
-(ns zigurat.graph)
+(ns zigurat.graph
+  (:require [clojure.set :refer [union]]))
 
 ;; [todo] split into graph, edge and node protocols
 (defprotocol ReactiveGraph
@@ -73,6 +74,33 @@
   [labels attrs from to]
   (->SemanticGraphEdge (gensym "e") labels attrs from to))
 
+(defmulti  datum-reader (fn [_ datum] (class datum)))
+(defmethod datum-reader
+  clojure.lang.Keyword
+  [data kw-datum]
+  (update-in data [:labels] conj kw-datum))
+(defmethod datum-reader
+  clojure.lang.PersistentArrayMap
+  [data map-datum]
+  (update-in data [:attrs]  merge map-datum))
+(defmethod datum-reader
+  clojure.lang.Symbol
+  [data sym-datum]
+  (assoc-in data  [:id] sym-datum))
+
+(defn make-node
+  [& {:keys [id labels attrs in out]
+      :or   {id     (gensym "n")
+             labels #{}
+             attrs   {}
+             in     #{}
+             out    #{}}}]
+  (->SemanticGraphNode id labels attrs in out))
+
+(defn parse-node
+  [& data]
+  (let [empty-node (make-node)]
+    (reduce datum-reader empty-node data)))
 
 ;;
 ;; Macros
@@ -87,21 +115,22 @@
 (defmethod dispatch-value clojure.lang.Symbol [sym] sym)
 (defmethod dispatch-value :default            [other] (class other))
 
-(defmulti  parse-path (partial map dispatch-value))
+(defmulti  parse-path (fn [& body] (vec (map dispatch-value body))))
 (defmethod parse-path
   [clojure.lang.PersistentList]
-  [_]
-  :node)
+  [node-body]
+  (apply parse-node node-body))
 (defmethod parse-path
   [clojure.lang.PersistentList '- clojure.lang.PersistentVector '-> clojure.lang.PersistentList]
-  [a] :a-triple)
+  [from-node _ through-edge _ to-node]
+  :a-triple)
 
-(defmacro build-path [& body] (parse-path body))
-;;(defmacro build-path [& body] `(parse-path '~body))
+(defmacro build-path
+  [& body]
+  `(apply parse-path '~body))
 
+(build-path (Escu :rural :school {:name "Escuelita"}))
 
-(build-path
- (:rural :school) -[:in]-> (Santiago :location))
-
-(macroexpand-1 '(defmethod id [x] (build-path
- (:rural :school) -[:in]-> (Santiago :location))))
+(time
+ (dotimes [_ 10000]
+  (build-path (Escu :rural :school {:name "Escuelita"}))))
