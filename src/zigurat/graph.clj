@@ -6,7 +6,9 @@
   "A protocol for reactive graphs."
   (get-node            [elem])
   (get-edge            [elem])
+  ;; rename to take-input-node ?
   (bind-node-to-source [elem node])
+  ;; rename to take-incoming-edge ?
   (bind-incoming-edge  [elem edge]))
 
 ;;
@@ -41,6 +43,7 @@
          new-link    [:edges new-edge-id]]
      (assoc graph :link new-link :nodes new-nodes :edges new-edges))))
 
+;; are `from` and `to` multiple or singular?
 (defrecord SemanticGraphEdge [id labels attrs from to]
   ReactiveGraph
   (get-edge
@@ -97,10 +100,24 @@
              out    #{}}}]
   (->SemanticGraphNode id labels attrs in out))
 
+(defn make-edge
+  [& {:keys [id labels attrs from to]
+      :or   {id     (gensym "e")
+             labels #{}
+             attrs   {}
+             from   #{}
+             to     #{}}}]
+  (->SemanticGraphEdge id labels attrs from to))
+
 (defn parse-node
   [& data]
   (let [empty-node (make-node)]
     (reduce datum-reader empty-node data)))
+
+(defn parse-edge
+  [& data]
+  (let [empty-edge (make-edge)]
+    (reduce datum-reader empty-edge data)))
 
 ;;
 ;; Macros
@@ -121,9 +138,19 @@
   [node-body]
   (apply parse-node node-body))
 (defmethod parse-path
-  [clojure.lang.PersistentList '- clojure.lang.PersistentVector '-> clojure.lang.PersistentList]
-  [from-node _ through-edge _ to-node]
-  :a-triple)
+  ['- clojure.lang.PersistentVector '-> zigurat.graph.SemanticGraphNode]
+  [_ edge-body _ node]
+  (let [edge (apply parse-edge edge-body)]
+    (bind-incoming-edge node edge)))
+(defmethod parse-path
+  ['- clojure.lang.PersistentVector '-> zigurat.graph.SemanticGraph]
+  [_ edge-body _ graph]
+  (let [edge (apply parse-edge edge-body)]
+    (bind-incoming-edge graph edge)))
+(defmethod parse-path
+  [zigurat.graph.SemanticGraphNode '- zigurat.graph.SemanticGraph]
+  [from _ through-to]
+  (bind-node-to-source through-to from))
 
 (defmacro build-path
   [& body]
@@ -131,6 +158,10 @@
 
 (build-path (Escu :rural :school {:name "Escuelita"}))
 
+(build-path  -[:in]-> (chi :location {:name "Chile"}))
+
+(build-path (stgo :location {:name "Santiago"}) -[:in]-> (chi :location {:name "Chile"}))
+
 (time
  (dotimes [_ 10000]
-  (build-path (Escu :rural :school {:name "Escuelita"}))))
+  (build-path  -[:in]-> (chi :location {:name "Chile"}))))
