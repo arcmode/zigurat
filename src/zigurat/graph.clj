@@ -69,13 +69,13 @@
 ;; helpers
 ;;
 
-(defn make-isolated-node
-  [labels attrs]
-  (->SemanticGraphNode (gensym "n") labels attrs #{} #{}))
+;; (defn make-isolated-node
+;;   [labels attrs]
+;;   (->SemanticGraphNode (gensym "n") labels attrs #{} #{}))
 
-(defn make-edge
-  [labels attrs from to]
-  (->SemanticGraphEdge (gensym "e") labels attrs from to))
+;; (defn make-edge
+;;   [labels attrs from to]
+;;   (->SemanticGraphEdge (gensym "e") labels attrs from to))
 
 (defmulti  datum-reader (fn [_ datum] (class datum)))
 (defmethod datum-reader
@@ -123,13 +123,18 @@
 ;; Macros
 ;;
 
-;;
-;;(build-path
-;;  (:rural :school) -[:in]-> (Santiago :location) -[:of]-> (Chile :location))
-;;
+(defmulti read-graph-symbol (fn [sym] (contains? #{'- '->} sym)))
+(defmethod read-graph-symbol
+  true
+  [sym]
+  sym)
+(defmethod read-graph-symbol
+  false
+  [sym]
+  :eval)
 
 (defmulti  dispatch-value class)
-(defmethod dispatch-value clojure.lang.Symbol [sym] sym)
+(defmethod dispatch-value clojure.lang.Symbol [sym] (read-graph-symbol sym))
 (defmethod dispatch-value :default            [other] (class other))
 
 (defmulti  parse-path (fn [& body] (vec (map dispatch-value body))))
@@ -156,12 +161,28 @@
   [& body]
   `(apply parse-path '~body))
 
-(build-path (Escu :rural :school {:name "Escuelita"}))
 
-(build-path  -[:in]-> (chi :location {:name "Chile"}))
+(parse-path '- [:in] '-> (parse-path '(:location {:name "Chile"})))
 
-(build-path (stgo :location {:name "Santiago"}) -[:in]-> (chi :location {:name "Chile"}))
+;; (build-path
 
-(time
- (dotimes [_ 10000]
-  (build-path  -[:in]-> (chi :location {:name "Chile"}))))
+;;   (sch :rural :school)
+;;   -
+;;   [:in]
+;;   ->
+;;   (stgo :location {:name "Santiago"})
+;;   -
+;;   [:in]
+;;   ->
+;;   (stgo :location {:name "Chile"})
+
+;; )
+
+
+
+
+
+
+;;(time
+;; (dotimes [_ 10000]
+;;  (build-path  -[:in]-> (chi :location {:name "Chile"}))))
