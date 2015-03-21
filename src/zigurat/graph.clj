@@ -109,6 +109,13 @@
              to     #{}}}]
   (->SemanticGraphEdge id labels attrs from to))
 
+(defn make-graph
+  [& {:keys [link nodes edges]
+      :or   {link   nil
+             nodes  {}
+             edges  {}}}]
+  (->SemanticGraph link nodes edges))
+
 (defn parse-node
   [& data]
   (let [empty-node (make-node)]
@@ -122,6 +129,22 @@
 ;;
 ;; Macros
 ;;
+
+
+(defmulti  parse-entity class)
+
+(defmethod parse-entity
+  clojure.lang.PersistentList
+  [node-body]
+  (apply parse-node node-body))
+(defmethod parse-entity
+  clojure.lang.PersistentVector
+  [edge-body]
+  (apply parse-edge edge-body))
+(defmethod parse-entity
+  clojure.lang.Symbol
+  [sym]
+  (eval sym))
 
 (defmulti read-graph-symbol (fn [sym] (contains? #{'- '->} sym)))
 (defmethod read-graph-symbol
@@ -138,10 +161,12 @@
 (defmethod dispatch-value :default            [other] (class other))
 
 (defmulti  parse-path (fn [& body] (vec (map dispatch-value body))))
+
 (defmethod parse-path
-  [clojure.lang.PersistentList]
-  [node-body]
-  (apply parse-node node-body))
+  [zigurat.graph.SemanticGraphNode]
+  [node]
+   node)
+
 (defmethod parse-path
   ['- clojure.lang.PersistentVector '-> zigurat.graph.SemanticGraphNode]
   [_ edge-body _ node]
@@ -157,9 +182,17 @@
   [from _ through-to]
   (bind-node-to-source through-to from))
 
+(defn parse-symbol
+  [sym]
+  (if (contains? #{'- '->} sym)
+    sym
+    (parse-entity sym)))
+
 (defmacro build-path
   [& body]
-  `(apply parse-path '~body))
+  `(apply parse-path (map parse-symbol '~body)))
+
+(macroexpand-1 '(build-path (:rural)))
 
 
 (parse-path '- [:in] '-> (parse-path '(:location {:name "Chile"})))
