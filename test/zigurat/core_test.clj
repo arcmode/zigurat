@@ -3,7 +3,8 @@
             [zigurat.nlp  :refer [parse-tree]]
             [zigurat.core :refer [realize-tree
                                   top np  pp
-                                  jj  nns nnp in]]
+                                  jj  nns nnp in
+                                  comma]]
             [clojure.pprint :refer [pprint]]))
 
 (run-tests 'zigurat.core)
@@ -12,9 +13,9 @@
 ;; Sandbox
 ;;
 
-(pprint (parse-tree ["rural schools in Santiago of Chile"]))
+(pprint (parse-tree ["rural schools in Santiago of Chile , with more than five students"]))
 
-(pprint (realize-tree ["rural schools in Santiago of Chile"]))
+(pprint (realize-tree ["rural schools in Santiago of Chile , with more than five students"]))
 
 
 ;;(time

@@ -2,6 +2,12 @@
   (:require [opennlp.treebank :refer [make-treebank-parser]]
             [clojure.string   :refer [lower-case]]))
 
+(def punctuation-map
+  {\, "comma"
+   \. "period"
+   \: "colon"
+   \; "semicolon"})
+
 ;; simpler flow control
 (defmacro if-apply
   [subject test? then else]
@@ -25,7 +31,13 @@
   [node]
   (if-apply node seq? read-tree name))
 
-(def str->tree (comp read-tree read-string))
+(defn parse-string
+  [string]
+  (apply str (replace punctuation-map string)))
+
+(def str->tree (comp read-tree read-string parse-string))
+
+(parse-string "rural .")
 
 (def make-trees (partial map str->tree))
 

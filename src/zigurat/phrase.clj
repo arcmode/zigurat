@@ -21,7 +21,7 @@
 
 (defn class-map
   [& elems]
-  (map class elems))
+  (vec (map class elems)))
 
 (defmulti np class-map)
 (defmulti pp class-map)
@@ -41,6 +41,11 @@
 (defmethod np
   [zigurat.phrase.NP zigurat.phrase.PP]
   [np pp]
+  (->NP (bind-node-to-source (:data pp) (:data np))))
+
+(defmethod np
+  [zigurat.phrase.NP zigurat.punctuation.COMMA zigurat.phrase.PP]
+  [np _ pp]
   (->NP (bind-node-to-source (:data pp) (:data np))))
 
 (defmethod pp
