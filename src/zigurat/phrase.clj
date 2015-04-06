@@ -1,5 +1,6 @@
 (ns zigurat.phrase
   (:require [zigurat.word]
+            [zigurat.punctuation]
             [zigurat.graph :refer [get-node
                                    make-edge
                                    make-isolated-node
@@ -13,6 +14,8 @@
 (defrecord NP [data])
 (defrecord PP [data])
 
+(defrecord QP [data])
+
 ;;
 ;; Grammar methods
 ;;
@@ -25,6 +28,7 @@
 
 (defmulti np class-map)
 (defmulti pp class-map)
+(defmulti qp class-map)
 
 (defmethod np
   [zigurat.word.JJ zigurat.word.NNS]
@@ -56,3 +60,8 @@
         edge      (make-edge #{(:token in)} {} #{} #{(:id link-node)})
         graph     (bind-incoming-edge np-data edge)]
     (->PP graph)))
+
+(defmethod qp
+  [zigurat.word.RBR zigurat.word.IN zigurat.word.CD]
+  [rbr in cd]
+  (->QP [rbr in cd]))

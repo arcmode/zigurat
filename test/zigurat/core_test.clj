@@ -2,8 +2,8 @@
   (:require [clojure.test :refer [run-tests]]
             [zigurat.nlp  :refer [parse-tree]]
             [zigurat.core :refer [realize-tree
-                                  top np  pp
-                                  jj  nns nnp in
+                                  top np  pp qp
+                                  jj  nns nnp in rbr cd
                                   comma]]
             [clojure.pprint :refer [pprint]]))
 
