@@ -69,10 +69,26 @@
 ;; helpers
 ;;
 
-(defn make-isolated-node
-  [labels attrs]
-  (->SemanticGraphNode (gensym "n") labels attrs #{} #{}))
+(defn make-node
+  [{:keys [id labels attrs in out]
+    :or {id     (gensym "n")
+         labels #{}
+         attrs   {}
+         in     #{}
+         out    #{}}}]
+  (->SemanticGraphNode id labels attrs in out))
 
 (defn make-edge
-  [labels attrs from to]
-  (->SemanticGraphEdge (gensym "e") labels attrs from to))
+  [{:keys [id labels attrs from to]
+    :or {id     (gensym "e")
+         labels #{}
+         attrs   {}
+         from   #{}
+         to     #{}}}]
+  (->SemanticGraphEdge id labels attrs from to))
+
+(defn make-graph
+  [{:keys [link nodes edges]
+    :or {nodes {}
+         edges {}}}]
+  (->SemanticGraph link nodes edges))
