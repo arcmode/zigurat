@@ -2,10 +2,9 @@
   (:require [clojure.test :refer [run-tests]]
             [zigurat.nlp  :refer [parse-tree]]
             [zigurat.core :refer [realize-tree
-                                  top np  pp qp
-                                  jj  nns nnp in rbr cd
-                                  comma]]
-            [clojure.pprint :refer [pprint]]))
+                                  top np  pp
+                                  jj  nns nnp in
+                                  comma]]))
 
 (run-tests 'zigurat.core)
 
@@ -13,12 +12,12 @@
 ;; Sandbox
 ;;
 
-(pprint (parse-tree ["rural schools in Santiago of Chile , with more than five students"]))
-(pprint (parse-tree ["a book has as first author a person"]))
-(pprint (parse-tree ["let x be a book where : x has as first author a person"]))
-(pprint (parse-tree ["let x be a book" "x has as first author a person"]))
+(clojure.pprint/pprint (parse-tree ["rural schools in Santiago of Chile , with more than five students"]))
+(clojure.pprint/pprint (parse-tree ["a book has as first author a person"]))
+(clojure.pprint/pprint (parse-tree ["let x be a book where : x has as first author a person"]))
+(clojure.pprint/pprint (parse-tree ["let x be a book" "x has as first author a person"]))
 
-;;(pprint (realize-tree ["rural schools in Santiago of Chile , with more than five students"]))
+(clojure.pprint/pprint (realize-tree ["rural schools in Santiago"]))
 
 
 ;;(time

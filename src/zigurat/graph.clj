@@ -1,72 +1,82 @@
-(ns zigurat.graph
-  (:require [clojure.set :refer [union]]))
+(ns zigurat.graph)
 
-;; [todo] split into graph, edge and node protocols
-(defprotocol ReactiveGraph
-  "A protocol for reactive graphs."
+;;
+;; Zigurat Graph Protocol: (should I split this into ReactiveEdge and ReactiveNode?)
+;;
+
+(defprotocol ReactiveNode
+  "A protocol for reactive nodes."
+  (get-graphnode       [elem])
   (get-node            [elem])
-  (get-edge            [elem])
-  ;; rename to take-input-node ?
-  (bind-node-to-source [elem node])
   ;; rename to take-incoming-edge ?
   (bind-incoming-edge  [elem edge]))
+
+(defprotocol ReactiveEdge
+  "A protocol for reactive edges."
+  (get-graphedge       [elem])
+  (get-edge            [elem])
+  ;; rename to take-input-node ?
+  (bind-node-to-source [elem node]))
 
 ;;
 ;; Semantic Graph Elements
 ;;
 
-(defrecord SemanticGraph [link nodes edges]
-  ReactiveGraph
-  (bind-node-to-source
-   [graph node]
-   (let [link-id     (second link)
-         link-edge   (get-edge (link-id edges))
-         new-node-id (:id node)
-         new-node    (update-in node      [:out]  conj link-id)
-         new-edge    (update-in link-edge [:from] conj new-node-id)
-         new-nodes   (assoc nodes new-node-id new-node)
-         new-edges   (assoc edges link-id     new-edge)
-         new-link    [:nodes new-node-id]]
-     (assoc graph :link new-link :nodes new-nodes :edges new-edges)))
-  (get-node
+(declare ->GraphNode)
+(declare ->GraphEdge)
+
+(defrecord GraphEdge [link-id nodes edges]
+  ReactiveEdge
+  (get-graphedge
    [graph]
-   (get-node ((second link) nodes)))
-  (bind-incoming-edge
-   [graph edge]
-   (let [link-id     (second link)
-         link-node   (get-node (link-id nodes))
-         new-edge-id (:id edge)
-         new-edge    (update-in edge      [:to] conj link-id)
-         new-node    (update-in link-node [:in] conj new-edge-id)
-         new-nodes   (assoc nodes link-id     new-node)
-         new-edges   (assoc edges new-edge-id new-edge)
-         new-link    [:edges new-edge-id]]
-     (assoc graph :link new-link :nodes new-nodes :edges new-edges))))
-
-;; are `from` and `to` multiple or singular?
-(defrecord SemanticGraphEdge [id labels attrs from to]
-  ReactiveGraph
+   graph)
   (get-edge
-   [edge]
-   edge))
+   [_]
+   (link-id edges))
+  (bind-node-to-source
+   [graph graphnode]
+   (let [edge      (link-id edges)
+         node-id   (:link-id graphnode)
+         node      (node-id (:nodes graphnode))
+         new-node  (update-in node [:out]  conj link-id)
+         new-edge  (update-in edge [:from] conj node-id)
+         new-nodes (merge nodes (:nodes graphnode) {node-id new-node})
+         new-edges (merge edges (:edges graphnode) {link-id new-edge})]
+     (->GraphNode node-id new-nodes new-edges))))
 
-(defrecord SemanticGraphNode [id labels attrs in out]
-  ReactiveGraph
+(defrecord GraphNode [link-id nodes edges]
+  ReactiveNode
+  (get-graphnode
+   [graph]
+   graph)
   (get-node
-   [node]
-   node)
+   [_]
+   (link-id nodes))
   (bind-incoming-edge
-   [node edge]
-   (let [new-edge-id (:id edge)
-         new-edge    (update-in edge [:to] conj id)
-         new-node    (update-in node [:in] conj new-edge-id)
-         nodes       {id new-node}
-         edges       {new-edge-id new-edge}
-         link        [:edges new-edge-id]]
-     (->SemanticGraph link nodes edges))))
+   [graph graphedge]
+   (let [node      (link-id nodes)
+         edge-id   (:link-id graphedge)
+         edge      (edge-id (:edges graphedge))
+         new-edge  (update-in edge [:to] conj link-id)
+         new-node  (update-in node [:in] conj edge-id)
+         new-nodes (merge nodes (:nodes graphedge) {link-id new-node})
+         new-edges (merge edges (:edges graphedge) {edge-id new-edge})]
+     (->GraphEdge edge-id new-nodes new-edges))))
+
+(defrecord Node [id labels attrs in out]
+  ReactiveNode
+  (get-graphnode
+   [node]
+   (->GraphNode id {id node} {})))
+
+(defrecord Edge [id labels attrs from to]
+  ReactiveEdge
+  (get-graphedge
+   [edge]
+   (->GraphEdge id {} {id edge})))
 
 ;;
-;; helpers
+;; Helpers
 ;;
 
 (defn make-node
@@ -76,7 +86,7 @@
          attrs   {}
          in     #{}
          out    #{}}}]
-  (->SemanticGraphNode id labels attrs in out))
+  (->Node id labels attrs in out))
 
 (defn make-edge
   [{:keys [id labels attrs from to]
@@ -85,10 +95,16 @@
          attrs   {}
          from   #{}
          to     #{}}}]
-  (->SemanticGraphEdge id labels attrs from to))
+  (->Edge id labels attrs from to))
 
-(defn make-graph
-  [{:keys [link nodes edges]
+(defn make-graph-node
+  [{:keys [link-id nodes edges]
     :or {nodes {}
          edges {}}}]
-  (->SemanticGraph link nodes edges))
+  (->GraphNode link-id nodes edges))
+
+(defn make-graph-edge
+  [{:keys [link-id nodes edges]
+    :or {nodes {}
+         edges {}}}]
+  (->GraphEdge link-id nodes edges))
