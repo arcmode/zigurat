@@ -16,6 +16,6 @@
   `(do ~@(for [i vlist]
            `(def ~i ~(symbol (str ns "/" i))))))
 
-(pull zigurat.word        (nns nnp jj in))
-(pull zigurat.phrase      (top np pp))
+(pull zigurat.word        (nns nnp jj in rbr cd))
+(pull zigurat.phrase      (top np pp qp))
 (pull zigurat.punctuation (comma period colon semicolon))
