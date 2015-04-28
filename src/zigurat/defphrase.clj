@@ -5,11 +5,11 @@
 ;; Transition states (don't know (where to put/how to call) this feature yet)
 ;;
 
-(defrecord Node-  [data])
-(defrecord Edge-> [data])
+(defrecord Node-  [code])
+(defrecord Edge-> [code])
 
 ;;
-;; General purpose dispatcher fns
+;; Dispatching stuff
 ;;
 
 (defn class-map
@@ -27,25 +27,21 @@
 
 (defmulti  node-reducer class-map)
 (defmethod node-reducer
-  [nil clojure.lang.Keyword]
-  [_ kw]
-  {:labels #{kw}})
-(defmethod node-reducer
-  [clojure.lang.PersistentArrayMap clojure.lang.Keyword]
-  [node-data kw]
-  (update-in node-data [:labels] clojure.set/union #{kw}))
-(defmethod node-reducer
-  [nil clojure.lang.Symbol]
-  [_ sym]
-  sym)
+  [nil clojure.lang.PersistentHashSet]
+  [_ labels]
+  {:labels labels})
 (defmethod node-reducer
   [nil clojure.lang.PersistentArrayMap]
-  [_ node-data]
-  node-data)
+  [_ attrs]
+  {:attrs attrs})
 (defmethod node-reducer
-  [nil clojure.lang.PersistentList]
-  [_ code]
-  code)
+  [nil clojure.lang.Symbol]
+  [_ elem]
+  elem)
+(defmethod node-reducer
+  [clojure.lang.PersistentArrayMap clojure.lang.PersistentArrayMap]
+  [data attrs]
+  (update-in data [:attrs] merge attrs))
 
 ;;
 ;; Edge Reducer
@@ -53,45 +49,73 @@
 
 (defmulti  edge-reducer class-map)
 (defmethod edge-reducer
-  [nil clojure.lang.Keyword]
-  [_ kw]
-  {:labels #{kw}})
+  [nil clojure.lang.Symbol]
+  [_ elem]
+  elem)
 (defmethod edge-reducer
-  [nil clojure.lang.PersistentList]
-  [_ code]
-  code)
+  [nil clojure.lang.PersistentHashSet]
+  [_ labels]
+  {:labels labels})
+
+;;
+;; Raw inputs wrappers
+;;
+
+(defmulti  get-node-code class)
+(defmethod get-node-code
+  clojure.lang.PersistentArrayMap
+  [node-params]
+  `(make-node ~node-params))
+(defmethod get-node-code
+  clojure.lang.Symbol
+  [sym]
+  sym)
+
+(defmulti  get-edge-code class)
+(defmethod get-edge-code
+  clojure.lang.PersistentArrayMap
+  [edge-params]
+  `(make-edge ~edge-params))
+(defmethod get-edge-code
+  clojure.lang.Symbol
+  [sym]
+  sym)
 
 ;;
 ;; Body Reducer (should I rename this to Graph Reducer?)
 ;;
 
-(defmulti  body-reducer sym-or-class-map)
-(defmethod body-reducer
+(defmulti  graph-reducer sym-or-class-map)
+(defmethod graph-reducer
   [nil clojure.lang.PersistentList]
-  [_ node-data]
-  `(get-graphnode ~(reduce node-reducer nil node-data)))
-(defmethod body-reducer
+  [_ node-body]
+  (let [node-data (reduce node-reducer nil node-body)]
+    `(get-graphnode ~(get-node-code node-data))))
+(defmethod graph-reducer
   [clojure.lang.Cons '-]
   [data _]
   (->Node- data))
-(defmethod body-reducer
+(defmethod graph-reducer
   [clojure.lang.Cons '->]
   [data _]
   (->Edge-> data))
-(defmethod body-reducer
+(defmethod graph-reducer
   [zigurat.defphrase.Node- clojure.lang.PersistentVector]
-  [node- edge-data]
-  (let [edge-code `(get-graphedge ~(reduce edge-reducer nil edge-data))]
-    `(bind-node-to-source ~edge-code ~(:data node-))))
-(defmethod body-reducer
+  [node- edge-body]
+  (let [edge-data (reduce edge-reducer nil edge-body)
+        edge-code `(get-graphedge ~(get-edge-code edge-data))]
+    `(bind-node-to-source ~edge-code ~(:code node-))))
+(defmethod graph-reducer
   [nil clojure.lang.PersistentVector]
-  [_ edge-data]
-  `(get-graphedge ~(reduce edge-reducer edge-data)))
-(defmethod body-reducer
+  [_ edge-body]
+  (let [edge-data (reduce edge-reducer nil edge-body)]
+    `(get-graphedge ~(get-edge-code edge-data))))
+(defmethod graph-reducer
   [zigurat.defphrase.Edge-> clojure.lang.PersistentList]
-  [edge-> node-data]
-  (let [node-code `(get-graphnode ~(reduce node-reducer nil node-data))]
-    `(bind-incoming-edge ~node-code ~(:data edge->))))
+  [edge-> node-body]
+  (let [node-data (reduce node-reducer nil node-body)
+        node-code `(get-graphnode ~(get-node-code node-data))]
+    `(bind-incoming-edge ~node-code ~(:code edge->))))
 
 ;;
 ;; Method Factory
@@ -109,7 +133,7 @@
     ([types args body]
      (method-body-factory types args body []))
     ([types args body ctx]
-     (let [method-body `(~constr-symbol ~(reduce body-reducer nil body))]
+     (let [method-body `(~constr-symbol ~(reduce graph-reducer nil body))]
        (if (seq ctx)
          `(~types
            ~args
