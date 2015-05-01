@@ -17,6 +17,7 @@
 (defrecord NP [data])
 (defrecord PP [data])
 (defrecord QP [data])
+(defrecord VP [data])
 
 ;;
 ;; Grammar methods
@@ -67,5 +68,10 @@
    [rbr in cd]
    ([#{lbl-rbr lbl-in}]-> (#{:number} {:body tok-cd}))
    [lbl-rbr (:token rbr)
-    lbl-in  (:token in )
+    lbl-in  (:token in)
     tok-cd  (:token cd)]))
+
+;; (defphrase VP
+;;   ([zigurat.word.VP zigurat.phrase.S]
+;;    [vp s]
+;;    ((#{vb-tok}) -)))
