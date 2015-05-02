@@ -5,14 +5,12 @@
 ;;
 
 (defprotocol ReactiveNode
-  "A protocol for reactive nodes."
   (get-graphnode       [elem])
   (get-node            [elem])
   ;; rename to take-incoming-edge ?
   (bind-incoming-edge  [elem edge]))
 
 (defprotocol ReactiveEdge
-  "A protocol for reactive edges."
   (get-graphedge       [elem])
   (get-edge            [elem])
   ;; rename to take-input-node ?
@@ -74,6 +72,13 @@
   (get-graphedge
    [edge]
    (->GraphEdge id {} {id edge})))
+
+;;
+;; Transition states (don't know (where to put/how to call) this feature yet)
+;;
+
+(defrecord Node-  [code])
+(defrecord Edge-> [code])
 
 ;;
 ;; Helpers

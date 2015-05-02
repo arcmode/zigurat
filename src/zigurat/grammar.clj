@@ -1,25 +1,59 @@
-(ns zigurat.defphrase
-  (:require [zigurat.graph :refer :all]))
+(ns zigurat.grammar
+  (:require [zigurat.graph
+             :refer [->Node-
+                     ->Edge->
+                     make-node
+                     make-edge
+                     get-graphnode
+                     get-graphedge
+                     bind-incoming-edge
+                     bind-node-to-source]])
+  (:import [zigurat.graph Node- Edge->]))
 
 ;;
-;; Transition states (don't know (where to put/how to call) this feature yet)
+;; Base Level
 ;;
 
-(defrecord Node-  [code])
-(defrecord Edge-> [code])
+(defprotocol GraphData
+  (get-data [elem]))
+
+;; rename to Expression ?
+(defrecord Part [tag data]
+  GraphData
+  (get-data [grammar] data))
+
+;; ----------------------
+;;
+;; Defhrase Macro Section
+;;
+;; ----------------------
 
 ;;
-;; Dispatching stuff
+;; Dispatching Stuff
 ;;
 
-(defn class-map
-  [& elems]
-  (vec (map class elems)))
+(defn class-map [& elems] (vec (map class elems)))
 
 (defmulti  sym-or-class class)
 (defmethod sym-or-class clojure.lang.Symbol [sym] sym)
 (defmethod sym-or-class :default [thing] (class thing))
 (defn sym-or-class-map [& body] (vec (map sym-or-class body)))
+
+;;
+;; Data Collector
+;;
+
+(defmulti  safe-value class)
+(defmethod safe-value
+  clojure.lang.Symbol
+  [v]
+  `(get-data ~v))
+(defmethod safe-value
+  clojure.lang.Keyword
+  [v]
+  v)
+
+(defn data-collector [[k v]] [k (safe-value v)])
 
 ;;
 ;; Node Reducer
@@ -28,20 +62,20 @@
 (defmulti  node-reducer class-map)
 (defmethod node-reducer
   [nil clojure.lang.PersistentHashSet]
-  [_ labels]
-  {:labels labels})
+  [_ hs]
+  {:labels (set (map safe-value hs))})
 (defmethod node-reducer
   [nil clojure.lang.PersistentArrayMap]
-  [_ attrs]
-  {:attrs attrs})
+  [_ am]
+  {:attrs (into {} (map data-collector am))})
 (defmethod node-reducer
   [nil clojure.lang.Symbol]
   [_ elem]
-  elem)
+  `(get-data ~elem))
 (defmethod node-reducer
   [clojure.lang.PersistentArrayMap clojure.lang.PersistentArrayMap]
-  [data attrs]
-  (update-in data [:attrs] merge attrs))
+  [data am]
+  (update-in data [:attrs] merge (into {} (map data-collector am))))
 
 ;;
 ;; Edge Reducer
@@ -51,14 +85,14 @@
 (defmethod edge-reducer
   [nil clojure.lang.Symbol]
   [_ elem]
-  elem)
+  `(get-data ~elem))
 (defmethod edge-reducer
   [nil clojure.lang.PersistentHashSet]
-  [_ labels]
-  {:labels labels})
+  [_ hs]
+  {:labels (set (map safe-value hs))})
 
 ;;
-;; Raw inputs wrappers
+;; Raw Inputs Wrappers
 ;;
 
 (defmulti  get-node-code class)
@@ -67,9 +101,9 @@
   [node-params]
   `(make-node ~node-params))
 (defmethod get-node-code
-  clojure.lang.Symbol
-  [sym]
-  sym)
+  clojure.lang.Cons
+  [code]
+  code)
 
 (defmulti  get-edge-code class)
 (defmethod get-edge-code
@@ -77,12 +111,12 @@
   [edge-params]
   `(make-edge ~edge-params))
 (defmethod get-edge-code
-  clojure.lang.Symbol
-  [sym]
-  sym)
+  clojure.lang.Cons
+  [code]
+  code)
 
 ;;
-;; Body Reducer (should I rename this to Graph Reducer?)
+;; Graph Reducer
 ;;
 
 (defmulti  graph-reducer sym-or-class-map)
@@ -100,7 +134,7 @@
   [data _]
   (->Edge-> data))
 (defmethod graph-reducer
-  [zigurat.defphrase.Node- clojure.lang.PersistentVector]
+  [zigurat.graph.Node- clojure.lang.PersistentVector]
   [node- edge-body]
   (let [edge-data (reduce edge-reducer nil edge-body)
         edge-code `(get-graphedge ~(get-edge-code edge-data))]
@@ -111,15 +145,18 @@
   (let [edge-data (reduce edge-reducer nil edge-body)]
     `(get-graphedge ~(get-edge-code edge-data))))
 (defmethod graph-reducer
-  [zigurat.defphrase.Edge-> clojure.lang.PersistentList]
+  [zigurat.graph.Edge-> clojure.lang.PersistentList]
   [edge-> node-body]
   (let [node-data (reduce node-reducer nil node-body)
         node-code `(get-graphnode ~(get-node-code node-data))]
     `(bind-incoming-edge ~node-code ~(:code edge->))))
 
 ;;
-;; Method Factory
+;; Method Code Factory
 ;;
+
+(def make-phrase-tag
+  (comp (partial keyword "zigurat.grammar") clojure.string/upper-case name))
 
 (defn make-method-header-factory
   [mmname]
@@ -128,12 +165,13 @@
     (concat `(defmethod ~mmname) code)))
 
 (defn make-method-body-factory
-  [constr-symbol]
+  [phrase-tag]
   (fn method-body-factory
-    ([types args body]
-     (method-body-factory types args body []))
-    ([types args body ctx]
-     (let [method-body `(~constr-symbol ~(reduce graph-reducer nil body))]
+    ([args body]
+     (method-body-factory args body []))
+    ([args body ctx]
+     (let [method-body `(->Part ~phrase-tag ~(reduce graph-reducer nil body))
+           types (vec (map make-phrase-tag args))]
        (if (seq ctx)
          `(~types
            ~args
@@ -144,25 +182,31 @@
            ~method-body))))))
 
 (defn make-method-factory
-  [mm-symbol constr-symbol]
-  (comp (make-method-header-factory mm-symbol) (make-method-body-factory constr-symbol)))
+  [mm-symbol phrase-tag]
+  (comp (make-method-header-factory mm-symbol) (make-method-body-factory phrase-tag)))
 
 (defn make-mdefinitions
-  [mm-symbol constr-symbol forms]
-  (map (partial apply (make-method-factory mm-symbol constr-symbol)) forms))
+  [mm-symbol phrase-tag forms]
+  (map (partial apply (make-method-factory mm-symbol phrase-tag)) forms))
 
 ;;
 ;; Defphrase Macro
 ;;
 
-(defn mmdispatcher [& elems] (vec (map class elems)))
+(defn mm-dispatcher [& elems] (vec (map :tag elems)))
 
 (defmacro defphrase
   [pname & forms]
-  (let [mm-name       (name pname)
-        mm-symbol     (symbol (clojure.string/lower-case mm-name))
-        constr-symbol (symbol (str "->" (clojure.string/upper-case mm-name)))
-        mdefinitions (make-mdefinitions mm-symbol constr-symbol forms)]
+  (let [phrase-tag    (make-phrase-tag pname)
+        mm-symbol     (symbol (clojure.string/lower-case (name pname)))
+        m-definitions (make-mdefinitions mm-symbol phrase-tag forms)]
     `(do
-       (defmulti ~mm-symbol ~mmdispatcher)
-       ~@mdefinitions)))
+       (defmulti ~mm-symbol ~mm-dispatcher)
+       ~@m-definitions)))
+
+;; ---------------------------
+;;
+;; End Defphrase Macro Section
+;;
+;; ---------------------------
+

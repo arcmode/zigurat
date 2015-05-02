@@ -1,10 +1,6 @@
 (ns zigurat.core-test
   (:require [clojure.test :refer [run-tests]]
-            [zigurat.nlp  :refer [parse-tree]]
-            [zigurat.core :refer [realize-tree
-                                  top np  pp qp
-                                  jj  nns nnp in rbr cd
-                                  comma]]))
+            [zigurat.core :refer [parse-tree realize-tree]]))
 
 (run-tests 'zigurat.core)
 
