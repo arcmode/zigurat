@@ -20,7 +20,7 @@
 ;;     (dotimes [_ 100]
 ;;       (realize-tree x))))
 
- (time
-    (let [x (parse-tree ["rural schools in Santiago of Chile , with less than five students"])]
-      (dotimes [_ 1000000]
-        (map eval x))))
+(time
+ (let [x (parse-tree ["rural schools in Santiago of Chile , with less than five students"])]
+   (dotimes [_ 1000000]
+     (map eval x))))
