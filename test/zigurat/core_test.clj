@@ -13,6 +13,9 @@
 (clojure.pprint/pprint (parse-tree ["let x be a book whose first author is a person named Author"]))
 
 (clojure.pprint/pprint (realize-tree ["rural schools in Santiago of Chile , with more than five students"]))
+(clojure.pprint/pprint (parse-tree ["rural schools located in Santiago of Chile , with more than five students"]))
+(clojure.pprint/pprint (parse-tree ["friends from Santiago of Chile , with more than five friends"]))
+
 ;;(clojure.pprint/pprint (realize-tree ["let x be a book whose first author is a person named Author ."]))
 
 ;;(time

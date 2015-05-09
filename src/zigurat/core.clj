@@ -46,14 +46,14 @@
   ([in np]       ([#{in}]-> (np))))
 
 (defphrase QP
-  ([rbr in cd]   ([#{rbr in}]-> (#{:number} {:body cd}))))
+  ([rbr in cd]   ([#{q}]-> (#{:number} {:body cd}))
+   [q (join-str-data rbr in)]))
 
 ;; (defphrase VP
-;;   ([zigurat.word.VP zigurat.grammar.S]
-;;    [vp s]
-;;    ((#{vb-tok}) -)))
+;;   ([vbn pp]
+;;    ((#{vb}) -)))
 
-;;
+
 ;; OpenNLP
 ;;
 
@@ -127,4 +127,5 @@
 ;;  (macroexpand-1
 ;;   '(defphrase QP
 ;;   ([rbr in cd]
-;;    ([#{rbr in}]-> (#{:number} {:body cd}))))))
+;;    ([#{q}]-> (#{:number} {:body cd}))
+;;    [q (str (:data rbr) "-" (:data in))]))))

@@ -22,6 +22,21 @@
   GraphData
   (get-data [grammar] data))
 
+(extend-type String
+  GraphData
+  (get-data [txt] txt))
+
+
+;;
+;; General Graph Utils
+;;
+
+(defn join-str-data
+  [& items]
+  (let [items-data (map get-data items)]
+     (apply str (clojure.string/join "-" items-data))))
+
+
 ;; ----------------------
 ;;
 ;; Defhrase Macro Section
