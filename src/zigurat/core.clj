@@ -63,7 +63,16 @@
    \: "colon"
    \; "semicolon"})
 
+(require 'zigurat.core :reload-all)
+
 (defmacro if-apply
+  "A simple macro for dispatching between two functions.
+
+  => (+ 1 1)
+  2
+
+  => (+ 2 3)
+  5"
   [subject test? then else]
   `(if (~test? ~subject) (~then ~subject) (~else ~subject)))
 
