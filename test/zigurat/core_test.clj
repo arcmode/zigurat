@@ -1,18 +1,25 @@
 (ns zigurat.core-test
   (:require [clojure.test :refer [deftest is]]
-            [zigurat.core :refer [parse-tree realize-tree]]))
+            [zigurat.core :refer [parse-tree
+                                  realize-tree
+                                  if-apply
+                                  read-tree
+                                  read-node
+                                  parse-string
+                                  str->tree]]))
 
 (defn test-statement
   [[sym docstr]]
-  (let [slice-examples (fn [docstr] (drop 1 (clojure.string/split docstr #"\n\s*=>")))
-        examples (slice-examples docstr)
-        wrap-in-parens (fn [exa-str] (str "(" exa-str ")"))
-        parse-example (comp read-string wrap-in-parens)
-        exa-code-list (map parse-example examples)
-        read-is-statement (fn [exa-code-pair] `(is (= ~(first exa-code-pair) ~(second exa-code-pair))))
-        is-statements (map read-is-statement exa-code-list)
-        test-name (symbol (str (name sym) "-test-"))
-        test-code `(deftest ~test-name ~@is-statements)
+  (let [slice-examples    (fn [docstr] (drop 1 (clojure.string/split docstr #"\n\s*=>")))
+        examples          (slice-examples docstr)
+        wrap-in-parens    (fn [exa-str] (str "(" exa-str ")"))
+        parse-example     (comp read-string wrap-in-parens)
+        exa-code-list     (map parse-example examples)
+        read-is-statement (fn [exa-code-pair] `(is (= ~(first exa-code-pair)
+                                                      ~(second exa-code-pair))))
+        is-statements     (map read-is-statement exa-code-list)
+        test-name         (symbol (str (name sym) "-doc-test"))
+        test-code         `(deftest ~test-name ~@is-statements)
         ]
     test-code))
 
@@ -27,12 +34,10 @@
 
 (defmacro doctest-ns
   [ns-sym]
-  (map test-statement (filter second (ns-publics-docstr ns-sym))))
-
-
+  (cons `do (map test-statement (filter second (ns-publics-docstr ns-sym)))))
 
 (doctest-ns zigurat.core)
-
+;; (clojure.pprint/pprint (macroexpand-1 '(doctest-ns zigurat.core)))
 
 ;;
 ;; Sandbox
