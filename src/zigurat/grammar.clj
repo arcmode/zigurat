@@ -1,5 +1,6 @@
 (ns zigurat.grammar
-  "Rename to zigurat.lang || z.defphrase"
+  "Rename to zigurat.lang || z.defphrase or
+  keep it open to other grammar categories ?"
 
   (:require [zigurat.graph
              :refer [->Node-
@@ -213,12 +214,15 @@
 (defn mm-dispatcher [& elems] (vec (map :tag elems)))
 
 (defmacro defphrase
-  [pname & forms]
+  [pname docstr & forms]
   (let [phrase-tag    (make-phrase-tag pname)
+        docstr?       (string? docstr)
         mm-symbol     (symbol (clojure.string/lower-case (name pname)))
-        m-definitions (make-mdefinitions mm-symbol phrase-tag forms)]
+        mm-sym-docstr (if docstr? (list mm-symbol docstr) (list mm-symbol))
+        m-forms       (if docstr? forms (cons docstr forms))
+        m-definitions (make-mdefinitions mm-symbol phrase-tag m-forms)]
     `(do
-       (defmulti ~mm-symbol ~mm-dispatcher)
+       (defmulti ~@mm-sym-docstr ~mm-dispatcher)
        ~@m-definitions)))
 
 ;; ---------------------------

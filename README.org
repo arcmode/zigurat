@@ -4,10 +4,6 @@
 
 * Pending Tasks [0%]
 
-- Ideas come first.
-- Descriptions come after.
-- And finally, code happens.
-
 ** TODO Make the verb system.
 Different verbs mean different graph structure.
 

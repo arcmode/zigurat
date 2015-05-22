@@ -7,11 +7,11 @@
   (:require [zigurat.grammar  :refer :all]
             [zigurat.nlp      :refer [parse-tree]]))
 
+;; TODO: rename tags to `zigurat.tags/JJ` form.
+
 ;;
 ;; Word Functions
 ;;
-
-;; TODO: rename tags to `zigurat.tags/JJ` form.
 
 (defn jj  [token] (->Part :zigurat.grammar/JJ  token))
 (defn nns [token] (->Part :zigurat.grammar/NNS token))
@@ -37,6 +37,18 @@
 (defn top [elem] elem)
 
 (defphrase NP
+  "Noun Phrase.
+
+   => (let [phrase (np (jj \"rural\") (nns \"schools\"))
+            nodes  (-> phrase :data :nodes)]
+        (map (comp :labels second) nodes))
+      '(#{\"rural\" \"schools\"})
+
+   => (let [phrase (np (nnp \"Santiago\"))
+            nodes  (-> phrase :data :nodes)]
+        (map (comp :attrs second) nodes))
+      '({:name \"Santiago\"})
+"
   ([jj nns]      ((#{jj nns})))
   ([nnp]         (({:name nnp})))
   ([np pp]       ((np) -[pp]))
