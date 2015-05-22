@@ -1,4 +1,6 @@
 (ns zigurat.grammar
+  "Rename to zigurat.lang || z.defphrase"
+
   (:require [zigurat.graph
              :refer [->Node-
                      ->Edge->
