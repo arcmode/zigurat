@@ -5,11 +5,9 @@
   * A phrase is a hashmap with `:phrase` and `:tag` members"
 
   (:require
-   [zigurat.graph   :refer [join-str-data ->Part]]
-   [zigurat.grammar :refer [defphrase]]
+   [zigurat.graph   :refer [join-str-data]]
+   [zigurat.grammar :refer [defwords defphrase]]
    [zigurat.nlp     :refer [parse-tree]]))
-
-;; TODO: rename tags to `zigurat.tags/JJ` form.
 
 ;;
 ;; Manual imports. TODO: use some clojure built-in
@@ -23,25 +21,17 @@
 (pull zigurat.graph (get-data nodes edges attrs labels in out))
 
 ;;
-;; Word Functions: refactor into defword
+;; Word Functions
 ;;
 
-(defn jj  [token] (->Part :zigurat.grammar/JJ  token))
-(defn nns [token] (->Part :zigurat.grammar/NNS token))
-(defn in  [token] (->Part :zigurat.grammar/IN  token))
-(defn nnp [token] (->Part :zigurat.grammar/NNP token))
-
-(defn rbr [token] (->Part :zigurat.grammar/RBR token))
-(defn cd  [token] (->Part :zigurat.grammar/CD  token))
+(defwords [jj nns in nnp rbr cd])
 
 ;;
 ;; Punctutaion Functions
 ;;
 
-(defn comma     [token] (->Part :zigurat.grammar/COMMA     token))
-(defn period    [token] (->Part :zigurat.grammar/PERIOD    token))
-(defn colon     [token] (->Part :zigurat.grammar/COLON     token))
-(defn semicolon [token] (->Part :zigurat.grammar/SEMICOLON token))
+(defwords [comma period colon semicolon])
+
 ;;
 ;; Grammar methods
 ;;

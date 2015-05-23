@@ -4,14 +4,8 @@
 
   (:require [zigurat.graph :refer [graph-reducer ->Part]]))
 
-;; ---------------------------
 ;;
-;; Defphrase: move to own ns.
-;;
-;; ===========================
-
-;;
-;; Method Code Factory
+;; Phrase Method Code Factory
 ;;
 
 (def make-phrase-tag
@@ -65,3 +59,21 @@
     `(do
        (defmulti ~@mm-sym-docstr ~mm-dispatcher)
        ~@m-definitions)))
+
+;;
+;; Defword Macro
+;;
+
+(defn make-word-def
+  [wname]
+  `(defn ~wname
+     [token#]
+     (->Part ~(make-phrase-tag wname) token#)))
+
+(defmacro defword
+  [wname]
+  (make-word-def wname))
+
+(defmacro defwords
+  [wnames]
+  `(do ~@(map make-word-def wnames)))
