@@ -5,11 +5,9 @@
   * A phrase is a hashmap with `:phrase` and `:tag` members"
 
   (:require
-   [zigurat.graph]
-   [zigurat.grammar  :refer [->Part
-                             defphrase
-                             join-str-data]]
-   [zigurat.nlp      :refer [parse-tree]]))
+   [zigurat.graph   :refer [join-str-data ->Part]]
+   [zigurat.grammar :refer [defphrase]]
+   [zigurat.nlp     :refer [parse-tree]]))
 
 ;; TODO: rename tags to `zigurat.tags/JJ` form.
 
@@ -22,11 +20,10 @@
   `(do ~@(for [i vlist]
            `(def ~i ~(symbol (str ns "/" i))))))
 
-(pull zigurat.graph   (nodes edges attrs labels in out))
-(pull zigurat.grammar (get-data))
+(pull zigurat.graph (get-data nodes edges attrs labels in out))
 
 ;;
-;; Word Functions
+;; Word Functions: refactor into defword
 ;;
 
 (defn jj  [token] (->Part :zigurat.grammar/JJ  token))
@@ -45,12 +42,18 @@
 (defn period    [token] (->Part :zigurat.grammar/PERIOD    token))
 (defn colon     [token] (->Part :zigurat.grammar/COLON     token))
 (defn semicolon [token] (->Part :zigurat.grammar/SEMICOLON token))
-
 ;;
 ;; Grammar methods
 ;;
 
 (defn top [elem] elem)
+
+;;    => (let [phrase (np (np (nnp \"Santiago\"))
+;;                        (pp (in \"of\")
+;;                            (np (nnp \"Chile\"))))]
+;;         (-> (match? (phrase get-data)
+;;                     '((Santiago) -[:of]-> (Chile)))))
+;;       true
 
 (defphrase NP
   "Noun Phrase.
