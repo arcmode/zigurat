@@ -21,7 +21,7 @@
 (pull zigurat.graph (get-data nodes edges attrs labels in out))
 
 ;;
-;; Word Functions
+;; Word Functions,
 ;;
 
 (defwords [jj nns in nnp rbr cd])
@@ -79,35 +79,3 @@
 
 (def map-eval     (partial map eval))
 (def realize-tree (comp map-eval parse-tree))
-
-;; (clojure.pprint/pprint
-;;  (macroexpand-1
-;;   '(defphrase NP
-;;   ([jj nns]
-;;    ((#{jj nns})))
-
-;;   ([nnp]
-;;    (({:name nnp})))
-
-;;   ([np pp]
-;;    ((np) -[pp]))
-
-;;   ([np _ pp]
-;;    ((np) -[pp]))
-
-;;   ([qp nns]
-;;    ((#{:count} {:body nns}) -[qp])))))
-
-;; (clojure.pprint/pprint
-;;  (macroexpand-1
-;;   '(defphrase PP
-;;   ([in np]
-;;    ([#{in}]-> (np))))))
-
-
-;; (clojure.pprint/pprint
-;;  (macroexpand-1
-;;   '(defphrase QP
-;;   ([rbr in cd]
-;;    ([#{q}]-> (#{:number} {:body cd}))
-;;    [q (str (:data rbr) "-" (:data in))]))))
