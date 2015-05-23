@@ -4,10 +4,26 @@
   * A sentence is a list of phrases
   * A phrase is a hashmap with `:phrase` and `:tag` members"
 
-  (:require [zigurat.grammar  :refer :all]
-            [zigurat.nlp      :refer [parse-tree]]))
+  (:require
+   [zigurat.graph]
+   [zigurat.grammar  :refer [->Part
+                             defphrase
+                             join-str-data]]
+   [zigurat.nlp      :refer [parse-tree]]))
 
 ;; TODO: rename tags to `zigurat.tags/JJ` form.
+
+;;
+;; Manual imports. TODO: use some clojure built-in
+;; ns-related method if possible.
+;;
+
+(defmacro pull [ns vlist]
+  `(do ~@(for [i vlist]
+           `(def ~i ~(symbol (str ns "/" i))))))
+
+(pull zigurat.graph   (nodes edges attrs labels in out))
+(pull zigurat.grammar (get-data))
 
 ;;
 ;; Word Functions
@@ -39,15 +55,13 @@
 (defphrase NP
   "Noun Phrase.
 
-   => (let [phrase (np (jj \"rural\") (nns \"schools\"))
-            nodes  (-> phrase :data :nodes)]
-        (map (comp :labels second) nodes))
-      '(#{\"rural\" \"schools\"})
+   => (let [phrase (np (jj \"rural\") (nns \"schools\"))]
+        (-> phrase get-data nodes first labels))
+      #{\"rural\" \"schools\"}
 
-   => (let [phrase (np (nnp \"Santiago\"))
-            nodes  (-> phrase :data :nodes)]
-        (map (comp :attrs second) nodes))
-      '({:name \"Santiago\"})
+   => (let [phrase (np (nnp \"Santiago\"))]
+        (-> phrase get-data nodes first attrs :name))
+      \"Santiago\"
 "
   ([jj nns]      ((#{jj nns})))
   ([nnp]         (({:name nnp})))

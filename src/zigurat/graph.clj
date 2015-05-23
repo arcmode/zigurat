@@ -1,7 +1,7 @@
 (ns zigurat.graph)
 
 ;;
-;; Zigurat Graph Protocol: (should I split this into ReactiveEdge and ReactiveNode?)
+;; Graph Protocols
 ;;
 
 (defprotocol ReactiveNode
@@ -15,6 +15,18 @@
   (get-edge            [elem])
   ;; rename to take-input-node ?
   (bind-node-to-source [elem node]))
+
+(defprotocol TraversableGraph
+  (nodes [elem])
+  (edges [elem]))
+
+(defprotocol PropertyGraph
+  (attrs  [elem])
+  (labels [elem])
+  (in     [elem])
+  (out    [elem])
+  (from   [elem])
+  (to     [elem]))
 
 ;;
 ;; Semantic Graph Elements
@@ -61,6 +73,32 @@
          new-edges (merge edges (:edges graphedge) {edge-id new-edge})]
      (->GraphEdge edge-id new-nodes new-edges))))
 
+(def default-traversable-graph-impl
+  {:nodes (fn [elem] (map second (:nodes elem)))
+   :edges (fn [elem] (map second (:edges elem)))})
+
+(extend GraphNode
+  TraversableGraph
+  default-traversable-graph-impl)
+
+(extend GraphEdge
+  TraversableGraph
+  default-traversable-graph-impl)
+
+(def default-property-graph-impl
+  {:attrs  (fn [elem] (:attrs  elem))
+   :labels (fn [elem] (:labels elem))})
+
+(def default-property-node-impl
+  (merge default-property-graph-impl
+         {:in  (fn [elem] (:in  elem))
+          :out (fn [elem] (:out elem))}))
+
+(def default-property-edge-impl
+  (merge default-property-graph-impl
+         {:from (fn [elem] (:from elem))
+          :to   (fn [elem] (:to   elem))}))
+
 (defrecord Node [id labels attrs in out]
   ReactiveNode
   (get-graphnode
@@ -73,14 +111,27 @@
    [edge]
    (->GraphEdge id {} {id edge})))
 
-;;
 ;; Transition states (don't know (where to put/how to call) this feature yet)
-;;
-
 (defrecord Node-  [code])
 (defrecord Edge-> [code])
 
-;;
+(extend Node
+  PropertyGraph
+  default-property-node-impl)
+
+(extend Edge
+  PropertyGraph
+  default-property-edge-impl)
+
+(extend Node-
+  PropertyGraph
+  default-property-node-impl)
+
+(extend Edge->
+  PropertyGraph
+  default-property-edge-impl)
+
+
 ;; Helpers
 ;;
 
