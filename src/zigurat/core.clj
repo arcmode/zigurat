@@ -21,19 +21,16 @@
 (pull zigurat.graph (get-data nodes edges attrs labels in out))
 
 ;;
-;; Word Functions,
+;; Particles
 ;;
 
+;; Word Functions
 (defwords [jj nns in nnp rbr cd])
-
-;;
 ;; Punctutaion Functions
-;;
-
 (defwords [comma period colon semicolon])
 
 ;;
-;; Grammar methods
+;; Compounds
 ;;
 
 (defn top [elem] elem)
@@ -42,7 +39,7 @@
 ;;                        (pp (in \"of\")
 ;;                            (np (nnp \"Chile\"))))]
 ;;         (-> (match? (phrase get-data)
-;;                     '((Santiago) -[:of]-> (Chile)))))
+;;                     '((@Santiago) -[:of]-> (@Chile)))))
 ;;       true
 
 (defphrase NP
@@ -54,8 +51,7 @@
 
    => (let [phrase (np (nnp \"Santiago\"))]
         (-> phrase get-data nodes first attrs :name))
-      \"Santiago\"
-"
+      \"Santiago\""
   ([jj nns]      ((#{jj nns})))
   ([nnp]         (({:name nnp})))
   ([np pp]       ((np) -[pp]))

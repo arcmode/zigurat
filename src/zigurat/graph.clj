@@ -8,13 +8,13 @@
   (get-graphnode       [elem])
   (get-node            [elem])
   ;; rename to take-incoming-edge ?
-  (bind-incoming-edge  [elem edge]))
+  (bind-incoming-edge  [elem edge] [elem node next-link-type]))
 
 (defprotocol ReactiveEdge
   (get-graphedge       [elem])
   (get-edge            [elem])
   ;; rename to take-input-node ?
-  (bind-node-to-source [elem node]))
+  (bind-node-to-source [elem node] [elem node next-link-type]))
 
 (defprotocol TraversableGraph
   (nodes [elem])
@@ -63,34 +63,40 @@
    :get-node (fn
                [graph]
                ((:link-id graph) (:nodes graph)))
-   :bind-incoming-edge (fn
-                         [graph graphedge]
-                         (let [link-id   (:link-id graph)
-                               node      (link-id nodes)
-                               edge-id   (:link-id graphedge)
-                               edge      (edge-id (:edges graphedge))
-                               new-edge  (update-in edge [:to] conj link-id)
-                               new-node  (update-in node [:in] conj edge-id)
-                               new-nodes (merge nodes (:nodes graphedge) {link-id new-node})
-                               new-edges (merge edges (:edges graphedge) {edge-id new-edge})]
-                           (->GraphEdge edge-id new-nodes new-edges)))})
+   :bind-incoming-edge (fn bind-incoming-edge
+                         ([graph graphedge] (bind-incoming-edge graph graphedge :edge-link))
+                         ([graph graphedge next-link-type]
+                          (let [node-id   (:link-id graph)
+                                node      (node-id (:nodes graph))
+                                edge-id   (:link-id graphedge)
+                                edge      (edge-id (:edges graphedge))
+                                new-edge  (update-in edge [:to] conj node-id)
+                                new-node  (update-in node [:in] conj edge-id)
+                                new-nodes (merge (:nodes graph) (:nodes graphedge) {node-id new-node})
+                                new-edges (merge (:edges graph) (:edges graphedge) {edge-id new-edge})]
+                            (case next-link-type
+                              :edge-link (->GraphEdge edge-id new-nodes new-edges)
+                              :node-link (->GraphNode node-id new-nodes new-edges)))))})
 
 (def graph-edge-reactive-graph-impl
   {:get-graphedge identity
    :get-edge (fn
                [graph]
                ((:link-id) (:edges graph)))
-   :bind-node-to-source (fn
-                          [graph graphnode]
-                          (let [link-id   (:link-id graph)
-                                edge      (link-id edges)
-                                node-id   (:link-id graphnode)
-                                node      (node-id (:nodes graphnode))
-                                new-node  (update-in node [:out]  conj link-id)
-                                new-edge  (update-in edge [:from] conj node-id)
-                                new-nodes (merge nodes (:nodes graphnode) {node-id new-node})
-                                new-edges (merge edges (:edges graphnode) {link-id new-edge})]
-                            (->GraphNode node-id new-nodes new-edges)))})
+   :bind-node-to-source (fn bind-node-to-source
+                          ([graph graphnode] (bind-node-to-source graph graphnode :node-link))
+                          ([graph graphnode next-link-type]
+                           (let [edge-id   (:link-id graph)
+                                 edge      (edge-id (:edges graph))
+                                 node-id   (:link-id graphnode)
+                                 node      (node-id (:nodes graphnode))
+                                 new-node  (update-in node [:out]  conj edge-id)
+                                 new-edge  (update-in edge [:from] conj node-id)
+                                 new-nodes (merge (:nodes graph) (:nodes graphnode) {node-id new-node})
+                                 new-edges (merge (:edges graph) (:edges graphnode) {edge-id new-edge})]
+                             (case next-link-type
+                               :node-link (->GraphNode node-id new-nodes new-edges)
+                               :edge-link (->GraphEdge edge-id new-nodes new-edges)))))})
 
 (def default-reactive-node-impl
   {:get-graphnode (fn
@@ -201,19 +207,44 @@
 
 ;;
 ;; Data Collector
+;; Todo: refactor safe value methods into a protocol.
 ;;
 
-(defmulti  safe-value class)
-(defmethod safe-value
+(defmulti  attr-safe-value class)
+(defmethod attr-safe-value
   clojure.lang.Symbol
-  [v]
-  `(get-data ~v))
-(defmethod safe-value
+  [sym]
+  `(get-data ~sym))
+(defmethod attr-safe-value
   clojure.lang.Keyword
-  [v]
-  v)
+  [kw]
+  kw)
+(defmethod attr-safe-value
+  java.lang.String
+  [txt]
+  txt)
 
-(defn data-collector [[k v]] [k (safe-value v)])
+(defmulti  label-safe-value class)
+(defmethod label-safe-value
+  clojure.lang.Symbol
+  [sym]
+  `(get-data ~sym))
+(defmethod label-safe-value
+  clojure.lang.Keyword
+  [kw]
+  kw)
+
+(defn data-collector [[k v]] [k (attr-safe-value v)])
+
+;;
+;; Read a List
+;;
+
+(defmulti  read-list first)
+(defmethod read-list
+  'clojure.core/deref
+  [[_ name-sym]]
+  {:attrs {:name (name name-sym)}})
 
 ;;
 ;; Node Reducer
@@ -223,11 +254,15 @@
 (defmethod node-reducer
   [nil clojure.lang.PersistentHashSet]
   [_ hs]
-  {:labels (set (map safe-value hs))})
+  {:labels (set (map label-safe-value hs))})
 (defmethod node-reducer
   [nil clojure.lang.PersistentArrayMap]
   [_ am]
   {:attrs (into {} (map data-collector am))})
+(defmethod node-reducer
+  [nil clojure.lang.PersistentList]
+  [_ ls]
+  (read-list ls))
 (defmethod node-reducer
   [nil clojure.lang.Symbol]
   [_ elem]
@@ -244,12 +279,16 @@
 (defmulti  edge-reducer class-map)
 (defmethod edge-reducer
   [nil clojure.lang.Symbol]
-  [_ elem]
-  `(get-data ~elem))
+  [_ sym]
+  `(get-data ~sym))
+(defmethod edge-reducer
+  [nil clojure.lang.Keyword]
+  [_ kw]
+  {:labels #{kw}})
 (defmethod edge-reducer
   [nil clojure.lang.PersistentHashSet]
   [_ hs]
-  {:labels (set (map safe-value hs))})
+  {:labels (set (map label-safe-value hs))})
 
 ;;
 ;; Raw Inputs Wrappers
@@ -276,7 +315,7 @@
   code)
 
 ;;
-;; Graph Reducer
+;; Graph Reducer. TODO: rename to graph-reader.
 ;;
 
 (defmulti  graph-reducer sym-or-class-map)
@@ -298,7 +337,7 @@
   [node- edge-body]
   (let [edge-data (reduce edge-reducer nil edge-body)
         edge-code `(get-graphedge ~(get-edge-code edge-data))]
-    `(bind-node-to-source ~edge-code ~(:code node-))))
+    `(bind-node-to-source ~edge-code ~(:code node-) :edge-link)))
 (defmethod graph-reducer
   [nil clojure.lang.PersistentVector]
   [_ edge-body]
@@ -310,6 +349,10 @@
   (let [node-data (reduce node-reducer nil node-body)
         node-code `(get-graphnode ~(get-node-code node-data))]
     `(bind-incoming-edge ~node-code ~(:code edge->))))
+
+(defn read-graph
+  [code]
+  (reduce graph-reducer nil code))
 
 ;; -------------------------
 ;; End Reader Section.
