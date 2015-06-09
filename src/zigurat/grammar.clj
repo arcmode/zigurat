@@ -2,7 +2,7 @@
   "Rename to zigurat.lang || z.defphrase or
   keep it open to other grammar categories ?"
 
-  (:require [zigurat.graph :refer [graph-reducer ->Part]]))
+  (:require [zigurat.graph :refer [read-graph-backward ->Part]]))
 
 ;;
 ;; Phrase Method Code Factory
@@ -23,7 +23,8 @@
     ([args body]
      (method-body-factory args body []))
     ([args body ctx]
-     (let [method-body `(->Part ~phrase-tag ~(reduce graph-reducer nil body))
+     (let [method-body `(->Part ~phrase-tag
+                                ~(read-graph-backward body))
            types (vec (map make-phrase-tag args))]
        (if (seq ctx)
          `(~types

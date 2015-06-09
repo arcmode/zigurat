@@ -43,7 +43,7 @@
 ;;       true
 
 (defphrase NP
-  "Noun Phrase.
+  "Noun Phrases.
 
    => (let [phrase (np (jj \"rural\") (nns \"schools\"))]
         (-> phrase get-data nodes first labels))
@@ -56,22 +56,49 @@
   ([nnp]         (({:name nnp})))
   ([np pp]       ((np) -[pp]))
   ([np comma pp] ((np) -[pp]))
-  ([qp nns]      ((#{:count} {:body nns}) -[qp])))
+  ([qp nns]      ((#{:count} {:val nns}) -[qp])))
 
 (defphrase PP
+  "Prepositional Phrases.
+
+   => (let [phrase (pp (in \"of\") (np (nnp \"Chile\")))]
+        (-> phrase get-data nodes))
+      {}"
   ([in np]       ([#{in}]-> (np))))
 
 (defphrase QP
-  ([rbr in cd]   ([#{q}]-> (#{:number} {:body cd}))
+  ([rbr in cd]   ([#{q}]-> (#{:number} {:val cd}))
    [q (join-str-data rbr in)]))
 
 ;; (defphrase VP
 ;;   ([vbn pp]
 ;;    ((#{vb}) -)))
 
-;;
-;; Parse Tree Evaluation
-;;
+;; ;;
+;; ;; Parse Tree Evaluation
+;; ;;
 
-(def map-eval     (partial map eval))
-(def realize-tree (comp map-eval parse-tree))
+;; (def map-eval     (partial map eval))
+;; (def realize-tree (comp map-eval parse-tree))
+
+
+
+
+;; (-> '(defphrase NP
+;;   "Noun Phrase.
+
+;;    => (let [phrase (np (jj \"rural\") (nns \"schools\"))]
+;;         (-> phrase get-data nodes first labels))
+;;       #{\"rural\" \"schools\"}
+
+;;    => (let [phrase (np (nnp \"Santiago\"))]
+;;         (-> phrase get-data nodes first attrs :name))
+;;       \"Santiago\""
+;;   ([jj nns]      ((#{jj nns})))
+;;   ([nnp]         (({:name nnp})))
+;;   ([np pp]       ((np) -[pp]))
+;;   ([np comma pp] ((np) -[pp]))
+;;   ([qp nns]      ((#{:count} {:val nns}) -[qp]))
+;;   )
+;;     macroexpand-1
+;;     clojure.pprint/pprint)

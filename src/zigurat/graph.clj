@@ -1,4 +1,11 @@
-(ns zigurat.graph)
+(ns zigurat.graph
+  (:require [clojure.set :refer [index union difference]]))
+
+;;
+;; Shared Stuff
+;;
+
+(defn class-map [& elems] (vec (map class elems)))
 
 ;;
 ;; Graph Protocols
@@ -8,19 +15,21 @@
   (get-graphnode       [elem])
   (get-node            [elem])
   ;; rename to take-incoming-edge ?
-  (bind-incoming-edge  [elem edge] [elem node next-link-type]))
+  (add-outgoing-edge   [elem edge]))
 
 (defprotocol ReactiveEdge
   (get-graphedge       [elem])
   (get-edge            [elem])
   ;; rename to take-input-node ?
-  (bind-node-to-source [elem node] [elem node next-link-type]))
+  (add-source-node     [elem node])
+  (add-target-node     [elem node]))
 
 (defprotocol TraversableGraph
+  (link  [elem])
   (nodes [elem])
   (edges [elem]))
 
-(defprotocol PropertyGraph
+(defprotocol PropertyGraphElem
   (attrs  [elem])
   (labels [elem])
   (in     [elem])
@@ -32,149 +41,226 @@
 ;; Semantic Graph Elements
 ;;
 
-(defrecord GraphEdge [link-id nodes edges])
-(defrecord GraphNode [link-id nodes edges])
-(defrecord Edge      [id labels attrs from to])
-(defrecord Node      [id labels attrs in   out])
+;; TODO: renae link to cursor?
+(defrecord GraphEdge [link nodes edges trips index])
+(defrecord GraphNode [link nodes edges trips index])
+(defrecord Edge      [id labels attrs])
+(defrecord Node      [id labels attrs])
 ;; Transition states (don't know how to implement this feature yet)
-(defrecord Edge->    [code])
-(defrecord Node-     [code])
+(defrecord EdgeCode   [code])
+(defrecord EdgeCode-  [code])
+(defrecord EdgeCode-> [code])
+(defrecord NodeCode   [code])
+(defrecord NodeCode-  [code])
+(defrecord NodeCode<- [code])
 
-(def default-traversable-graph-impl
-  {:nodes (fn [elem] (map second (:nodes elem)))
-   :edges (fn [elem] (map second (:edges elem)))})
+;;
+;; Index Utils
+;;
 
-(def default-property-graph-impl
-  {:attrs  (fn [elem] (:attrs  elem))
-   :labels (fn [elem] (:labels elem))})
+(defn unique-index
+  "Creates an unique index using set/index.
 
-(def default-property-node-impl
-  (merge default-property-graph-impl
-         {:in  (fn [elem] (:in  elem))
-          :out (fn [elem] (:out elem))}))
+  ;TODO: implement index and unique-index types with protocols
 
-(def default-property-edge-impl
-  (merge default-property-graph-impl
-         {:from (fn [elem] (:from elem))
-          :to   (fn [elem] (:to   elem))}))
+  => (unique-index #{[:a :b :c]} [1])
+     {{1 :b} [:a :b :c]}"
+  [data ks]
+  (into {} (map #(-> [(first %) (first (second %))]) (index data ks))))
 
-(def graph-node-reactive-graph-impl
-  {:get-graphnode identity
-   :get-node (fn
-               [graph]
-               ((:link-id graph) (:nodes graph)))
-   :bind-incoming-edge (fn bind-incoming-edge
-                         ([graph graphedge] (bind-incoming-edge graph graphedge :edge-link))
-                         ([graph graphedge next-link-type]
-                          (let [node-id   (:link-id graph)
-                                node      (node-id (:nodes graph))
-                                edge-id   (:link-id graphedge)
-                                edge      (edge-id (:edges graphedge))
-                                new-edge  (update-in edge [:to] conj node-id)
-                                new-node  (update-in node [:in] conj edge-id)
-                                new-nodes (merge (:nodes graph) (:nodes graphedge) {node-id new-node})
-                                new-edges (merge (:edges graph) (:edges graphedge) {edge-id new-edge})]
-                            (case next-link-type
-                              :edge-link (->GraphEdge edge-id new-nodes new-edges)
-                              :node-link (->GraphNode node-id new-nodes new-edges)))))})
+(defn index-elems [elems]
+  {:id   (index elems [:id])
+   :data (index elems [:labels :attrs])})
 
-(def graph-edge-reactive-graph-impl
-  {:get-graphedge identity
-   :get-edge (fn
-               [graph]
-               ((:link-id) (:edges graph)))
-   :bind-node-to-source (fn bind-node-to-source
-                          ([graph graphnode] (bind-node-to-source graph graphnode :node-link))
-                          ([graph graphnode next-link-type]
-                           (let [edge-id   (:link-id graph)
-                                 edge      (edge-id (:edges graph))
-                                 node-id   (:link-id graphnode)
-                                 node      (node-id (:nodes graphnode))
-                                 new-node  (update-in node [:out]  conj edge-id)
-                                 new-edge  (update-in edge [:from] conj node-id)
-                                 new-nodes (merge (:nodes graph) (:nodes graphnode) {node-id new-node})
-                                 new-edges (merge (:edges graph) (:edges graphnode) {edge-id new-edge})]
-                             (case next-link-type
-                               :node-link (->GraphNode node-id new-nodes new-edges)
-                               :edge-link (->GraphEdge edge-id new-nodes new-edges)))))})
+(defn index-trips [trips]
+  {:source (index        trips [0])
+   :edge   (unique-index trips [1])
+   :target (index        trips [2])})
 
-(def default-reactive-node-impl
-  {:get-graphnode (fn
-                    [node]
-                    (let [id (:id node)]
-                      (->GraphNode id {id node} {})))})
+(defn indexes
+  "Creates an index from sets of nodes, edges and trips.
 
-(def default-reactive-edge-impl
-  {:get-graphedge (fn
-                    [edge]
-                    (let [id (:id edge)]
-                      (->GraphEdge id {} {id edge})))})
+  ;TODO: implement index type and indexer protocol.
 
-(extend GraphNode
-  TraversableGraph
-  default-traversable-graph-impl
-  ReactiveNode
-  graph-node-reactive-graph-impl)
+  => (indexes #{{:id 'n1 :labels :ln1 :attrs :an1}
+                {:id 'n2 :labels :ln2 :attrs :an2}}
+              #{{:id 'e  :labels :le  :attrs :ae}}
+              #{['n1 'e 'n2]})
+     {:nodes {:id   {{:id 'n1} #{{:id 'n1 :labels :ln1 :attrs :an1}}
+                     {:id 'n2} #{{:id 'n2 :labels :ln2 :attrs :an2}}}
+              :data {{:labels :ln1 :attrs :an1} #{{:id 'n1 :labels :ln1 :attrs :an1}}
+                     {:labels :ln2 :attrs :an2} #{{:id 'n2 :labels :ln2 :attrs :an2}}}}
+      :edges {:id   {{:id 'e}  #{{:id 'e  :labels :le  :attrs :ae}}}
+              :data {{:labels :le  :attrs :ae}  #{{:id 'e  :labels :le  :attrs :ae}}}}
+      :trips {:source {{0 'n1} #{['n1 'e 'n2]}}
+              :edge   {{1 'e}    ['n1 'e 'n2]}
+              :target {{2 'n2} #{['n1 'e 'n2]}}}}"
+  [nodes edges trips]
+  {:nodes (index-elems nodes)
+   :edges (index-elems edges)
+   :trips (index-trips trips)})
 
-(extend GraphEdge
-  TraversableGraph
-  default-traversable-graph-impl
-  ReactiveEdge
-  graph-edge-reactive-graph-impl)
+;TODO: deflookup
+(defn edge-trip [graph edge-id]
+  (-> graph :index :trips :edge (get {1 edge-id})))
 
-(extend Node
-  PropertyGraph
-  default-property-node-impl
-  ReactiveNode
-  default-reactive-node-impl)
-
-(extend Edge
-  PropertyGraph
-  default-property-edge-impl
-  ReactiveEdge
-  default-reactive-edge-impl)
-
-(extend Node-
-  PropertyGraph
-  default-property-node-impl)
-
-(extend Edge->
-  PropertyGraph
-  default-property-edge-impl)
+(defn target-trip [graph node-id]
+  (-> graph :index :trips :target (get {2 node-id})))
 
 ;;
 ;; Builders
 ;;
 
 (defn make-node
-  [{:keys [id labels attrs in out]
-    :or {id     (gensym "n")
+  "Create a Node.
+
+  => (class (make-node {:id 'n :labels :l :attrs :a}))
+     zigurat.graph.Node"
+  [{:keys [id labels attrs]
+    :or {id     (gensym "N")
          labels #{}
-         attrs   {}
-         in     #{}
-         out    #{}}}]
-  (->Node id labels attrs in out))
+         attrs   {}}}]
+  (->Node id labels attrs))
 
 (defn make-edge
-  [{:keys [id labels attrs from to]
-    :or {id     (gensym "e")
+  "Create an Edge.
+
+  => (class (make-edge {:id 'e :labels :l :attrs :a}))
+     zigurat.graph.Edge"
+  [{:keys [id labels attrs]
+    :or {id     (gensym "E")
          labels #{}
-         attrs   {}
-         from   #{}
-         to     #{}}}]
-  (->Edge id labels attrs from to))
+         attrs   {}}}]
+  (->Edge id labels attrs))
 
 (defn make-graph-node
-  [{:keys [link-id nodes edges]
-    :or {nodes {}
-         edges {}}}]
-  (->GraphNode link-id nodes edges))
+  [node]
+  (let [nodes #{node}
+        edges #{}
+        trips #{[(:id node) nil nil]}
+        index (indexes nodes edges trips)]
+    (->GraphNode node nodes edges trips index)))
 
 (defn make-graph-edge
-  [{:keys [link-id nodes edges]
-    :or {nodes {}
-         edges {}}}]
-  (->GraphEdge link-id nodes edges))
+  [edge]
+  (let [nodes #{}
+        edges #{edge}
+        trips #{[nil (:id edge) nil]}
+        index (indexes nodes edges trips)]
+    (->GraphEdge edge nodes edges trips index)))
+
+;TODO: make a getter-creator fn
+;TODO: can be changed to {:nodes :nodes :edges :edges} ?
+(def default-traversable-graph-impl
+  {:nodes (fn [elem] (:nodes elem))
+   :edges (fn [elem] (:edges elem))})
+
+(def graph-node-traversable-graph-impl
+  (merge default-traversable-graph-impl
+         {:link (fn [graph] (:link graph))}))
+
+(def graph-edge-traversable-graph-impl
+  (merge default-traversable-graph-impl
+         {:link (fn [graph] (:link graph))}))
+
+(def default-property-graph-impl
+  {:attrs  (fn [elem] (:attrs  elem))
+   :labels (fn [elem] (:labels elem))})
+
+(defn add-outgoing-edge
+  [graphnode graphedge]
+   (let [node      (:link graphnode)
+         edge      (:link graphedge)
+         new-nodes (union (:nodes graphnode) (:nodes graphedge))
+         new-edges (union (:edges graphnode) (:edges graphedge))
+         edge-id   (:id edge)
+         node-id   (:id node)
+         ;; query unique index
+         old-graphnode-trip [node-id nil nil]
+         old-graphedge-trip (edge-trip graphedge edge-id)
+         [old-graphedge-trip-source
+          _
+          old-graphedge-trip-target] old-graphedge-trip
+
+         new-trip  [old-graphedge-trip-source edge-id node-id]
+         new-trips (union
+                     (difference
+                       (:trips graphnode)
+                       #{old-graphnode-trip})
+                     (difference
+                       (:trips graphedge)
+                       #{old-graphedge-trip})
+                     #{new-trip})
+         new-index (indexes new-nodes new-edges new-trips)]
+     (->GraphNode node new-nodes new-edges new-trips new-index)))
+
+(def graph-node-reactive-graph-impl
+  {:get-graphnode identity
+   :get-node (fn [graph] (:link graph))
+   ;TODO: refactor into a simple merge and appending of the new trip
+   :add-outgoing-edge add-outgoing-edge})
+
+(defn add-source-node
+  [graphedge graphnode]
+   (let [edge      (:link graphedge)
+         node      (:link graphnode)
+         new-nodes (union (:nodes graphedge) (:nodes graphnode))
+         new-edges (union (:edges graphedge) (:edges graphnode))
+         node-id   (:id node)
+         edge-id   (:id edge)
+         ;; query unique index
+         old-graphedge-trip (edge-trip graphedge edge-id)
+         old-graphnode-trip [node-id nil nil]
+         [old-graphedge-trip-source
+          _
+          old-graphedge-trip-target] old-graphedge-trip
+
+         new-trip  [node-id edge-id old-graphedge-trip-target]
+         new-trips (union
+                     (difference
+                       (:trips graphedge)
+                       #{old-graphedge-trip})
+                     (difference
+                       (:trips graphnode)
+                       #{old-graphnode-trip})
+                     #{new-trip})
+         new-index (indexes new-nodes new-edges new-trips)]
+       (->GraphEdge edge new-nodes new-edges new-trips new-index)))
+
+(def graph-edge-reactive-graph-impl
+  {:get-graphedge identity
+   :get-edge (fn [graph] (:link graph))
+   :add-source-node add-source-node})
+
+(def default-node-reactive-graph-impl
+  {:get-graphnode make-graph-node})
+
+(def default-edge-reactive-graph-impl
+  {:get-graphedge make-graph-edge})
+
+(extend GraphNode
+  TraversableGraph
+  graph-node-traversable-graph-impl
+  ReactiveNode
+  graph-node-reactive-graph-impl)
+
+(extend GraphEdge
+  TraversableGraph
+  graph-edge-traversable-graph-impl
+  ReactiveEdge
+  graph-edge-reactive-graph-impl)
+
+(extend Node
+  PropertyGraphElem
+  default-property-graph-impl
+  ReactiveNode
+  default-node-reactive-graph-impl)
+
+(extend Edge
+  PropertyGraphElem
+  default-property-graph-impl
+  ReactiveEdge
+  default-edge-reactive-graph-impl)
 
 ;; rename to Expression ?
 (defrecord Part [tag data])
@@ -197,8 +283,6 @@
 ;;
 ;; Dispatching Stuff
 ;;
-
-(defn class-map [& elems] (vec (map class elems)))
 
 (defmulti  sym-or-class class)
 (defmethod sym-or-class clojure.lang.Symbol [sym] sym)
@@ -252,6 +336,14 @@
 
 (defmulti  node-reducer class-map)
 (defmethod node-reducer
+  [nil clojure.lang.Keyword]
+  [_ kw]
+  {:labels #{kw}})
+(defmethod node-reducer
+  [clojure.lang.PersistentArrayMap clojure.lang.Keyword]
+  [data kw]
+  (update-in data [:labels] conj kw))
+(defmethod node-reducer
   [nil clojure.lang.PersistentHashSet]
   [_ hs]
   {:labels (set (map label-safe-value hs))})
@@ -272,6 +364,9 @@
   [data am]
   (update-in data [:attrs] merge (into {} (map data-collector am))))
 
+(defn read-node [body]
+  (reduce node-reducer nil body))
+
 ;;
 ;; Edge Reducer
 ;;
@@ -289,6 +384,9 @@
   [nil clojure.lang.PersistentHashSet]
   [_ hs]
   {:labels (set (map label-safe-value hs))})
+
+(defn read-edge [body]
+  (reduce edge-reducer nil body))
 
 ;;
 ;; Raw Inputs Wrappers
@@ -323,36 +421,76 @@
   [nil clojure.lang.PersistentList]
   [_ node-body]
   (let [node-data (reduce node-reducer nil node-body)]
-    `(get-graphnode ~(get-node-code node-data))))
+    (->NodeCode `(get-graphnode ~(get-node-code node-data)))))
 (defmethod graph-reducer
-  [clojure.lang.Cons '-]
-  [data _]
-  (->Node- data))
+  [zigurat.graph.NodeCode '-]
+  [code _]
+  (->NodeCode- code))
 (defmethod graph-reducer
-  [clojure.lang.Cons '->]
-  [data _]
-  (->Edge-> data))
+  [zigurat.graph.NodeCode '<-]
+  [code _]
+  (->NodeCode<- code))
 (defmethod graph-reducer
-  [zigurat.graph.Node- clojure.lang.PersistentVector]
-  [node- edge-body]
+  [zigurat.graph.EdgeCode '-]
+  [code _]
+  (->EdgeCode- code))
+(defmethod graph-reducer
+  [zigurat.graph.EdgeCode '->]
+  [code _]
+  (->EdgeCode-> code))
+(defmethod graph-reducer
+  [zigurat.graph.EdgeCode- clojure.lang.PersistentList]
+  [edge-code- node-body]
+  (let [node-data (reduce node-reducer nil node-body)
+        node-code `(get-graphnode ~(get-node-code node-data))]
+    (->NodeCode `(add-outgoing-edge ~node-code ~(:code edge-code-)))))
+(defmethod graph-reducer
+  [zigurat.graph.NodeCode- clojure.lang.PersistentVector]
+  [node-code- edge-body]
   (let [edge-data (reduce edge-reducer nil edge-body)
         edge-code `(get-graphedge ~(get-edge-code edge-data))]
-    `(bind-node-to-source ~edge-code ~(:code node-) :edge-link)))
+    (->EdgeCode `(add-source-node ~edge-code ~(:code node-code-)))))
+(defmethod graph-reducer
+  [zigurat.graph.NodeCode<- clojure.lang.PersistentVector]
+  [node-code<- edge-body]
+  (let [edge-data (reduce edge-reducer nil edge-body)
+        edge-code `(get-graphedge ~(get-edge-code edge-data))]
+    (->EdgeCode `(add-target-node ~edge-code ~(:code node-code<-)))))
 (defmethod graph-reducer
   [nil clojure.lang.PersistentVector]
   [_ edge-body]
   (let [edge-data (reduce edge-reducer nil edge-body)]
-    `(get-graphedge ~(get-edge-code edge-data))))
+    (->EdgeCode `(get-graphedge ~(get-edge-code edge-data)))))
 (defmethod graph-reducer
-  [zigurat.graph.Edge-> clojure.lang.PersistentList]
+  [zigurat.graph.EdgeCode-> clojure.lang.PersistentList]
   [edge-> node-body]
   (let [node-data (reduce node-reducer nil node-body)
         node-code `(get-graphnode ~(get-node-code node-data))]
-    `(bind-incoming-edge ~node-code ~(:code edge->))))
+    (->NodeCode `(add-outgoing-edge ~node-code ~(:code edge->)))))
 
-(defn read-graph
-  [code]
-  (reduce graph-reducer nil code))
+(defn read-graph [code]
+  (:code (reduce graph-reducer nil code)))
+
+(defmulti  ltr-to-rtl sym-or-class)
+(defmethod ltr-to-rtl clojure.lang.PersistentList
+  [node-code]
+  node-code)
+(defmethod ltr-to-rtl clojure.lang.PersistentVector
+  [edge-code]
+  edge-code)
+(defmethod ltr-to-rtl '-
+  [_]
+  '-)
+(defmethod ltr-to-rtl '->
+  [_]
+  '<-)
+
+(defn reverse-code [code]
+  (rseq (vec (map ltr-to-rtl code))))
+
+(defn read-graph-backward [code-ltr]
+  (let [code (reverse-code code-ltr)]
+    (read-graph code)))
 
 ;; -------------------------
 ;; End Reader Section.
@@ -362,7 +500,6 @@
 ;; General Data Utils
 ;;
 
-(defn join-str-data
-  [& items]
+(defn join-str-data [& items]
   (let [items-data (map get-data items)]
      (apply str (clojure.string/join "-" items-data))))
