@@ -14,15 +14,20 @@
 (defprotocol ReactiveNode
   (get-graphnode       [elem])
   (get-node            [elem])
-  ;; rename to take-incoming-edge ?
-  (add-outgoing-edge   [elem edge]))
+  (add-outgoing-edge   [elem edge])
+  (add-incoming-edge   [elem edge]))
 
 (defprotocol ReactiveEdge
   (get-graphedge       [elem])
   (get-edge            [elem])
-  ;; rename to take-input-node ?
   (add-source-node     [elem node])
   (add-target-node     [elem node]))
+
+(defprotocol ReactiveGraph
+  (obs-trips-as-src [graph])
+  (obs-trips-as-tgt [graph])
+  (new-trip-as-src  [graph] [graph base-trip])
+  (new-trip-as-tgt  [graph] [graph base-trip]))
 
 (defprotocol TraversableGraph
   (link  [elem])
@@ -167,100 +172,119 @@
   {:attrs  (fn [elem] (:attrs  elem))
    :labels (fn [elem] (:labels elem))})
 
-(defn add-outgoing-edge
-  [graphnode graphedge]
-   (let [node      (:link graphnode)
-         edge      (:link graphedge)
-         new-nodes (union (:nodes graphnode) (:nodes graphedge))
-         new-edges (union (:edges graphnode) (:edges graphedge))
-         edge-id   (:id edge)
-         node-id   (:id node)
-         ;; query unique index
-         old-graphnode-trip [node-id nil nil]
-         old-graphedge-trip (edge-trip graphedge edge-id)
-         [old-graphedge-trip-source
-          _
-          old-graphedge-trip-target] old-graphedge-trip
+(def not-nil? (complement nil?))
 
-         new-trip  [old-graphedge-trip-source edge-id node-id]
-         new-trips (union
-                     (difference
-                       (:trips graphnode)
-                       #{old-graphnode-trip})
-                     (difference
-                       (:trips graphedge)
-                       #{old-graphedge-trip})
-                     #{new-trip})
-         new-index (indexes new-nodes new-edges new-trips)]
-     (->GraphNode node new-nodes new-edges new-trips new-index)))
+(defn trip-elem-picker [a b]
+  (let [both-non-nil (and (not-nil? a) (not-nil? b))]
+    (if both-non-nil
+      (throw (Exception. "Cannot pick a value between two non nil values."))
+      (or a b))))
 
-(def graph-node-reactive-graph-impl
-  {:get-graphnode identity
-   :get-node (fn [graph] (:link graph))
-   ;TODO: refactor into a simple merge and appending of the new trip
+(defn assemble-trip [src-trip tgt-trip]
+  (let [src-id  (trip-elem-picker (get src-trip 0) (get tgt-trip 0))
+        edge-id (trip-elem-picker (get src-trip 1) (get tgt-trip 1))
+        tgt-id  (trip-elem-picker (get src-trip 2) (get tgt-trip 2))]
+    [src-id edge-id tgt-id]))
+
+(defn connect-graphs
+  [source target]
+  (let [new-nodes     (union (:nodes source) (:nodes target))
+        new-edges     (union (:edges source) (:edges target))
+        ;; get obsolete trips
+        obs-src-trips (obs-trips-as-src source)
+        obs-tgt-trips (obs-trips-as-tgt target)
+        new-trip      (assemble-trip (new-trip-as-src source)
+                                     (new-trip-as-tgt target))
+        new-trips     (union
+                       (difference (:trips source) obs-src-trips)
+                       (difference (:trips target) obs-tgt-trips)
+                       #{new-trip})
+        new-index     (indexes new-nodes new-edges new-trips)]
+    (merge source {:nodes new-nodes :edges new-edges
+                   :trips new-trips :index new-index})))
+
+(defn add-outgoing-edge [graphnode graphedge]
+  (connect-graphs graphnode graphedge))
+
+(defn add-source-node [graphedge graphnode]
+  (connect-graphs graphnode graphedge))
+
+(defn add-target-node [graphedge graphnode]
+  (connect-graphs graphedge graphnode))
+
+(def graph-node-reactive-node-impl
+  {:get-graphnode     identity
+   :get-node          (fn [graph] (:link graph))
    :add-outgoing-edge add-outgoing-edge})
 
-(defn add-source-node
-  [graphedge graphnode]
-   (let [edge      (:link graphedge)
-         node      (:link graphnode)
-         new-nodes (union (:nodes graphedge) (:nodes graphnode))
-         new-edges (union (:edges graphedge) (:edges graphnode))
-         node-id   (:id node)
-         edge-id   (:id edge)
-         ;; query unique index
-         old-graphedge-trip (edge-trip graphedge edge-id)
-         old-graphnode-trip [node-id nil nil]
-         [old-graphedge-trip-source
-          _
-          old-graphedge-trip-target] old-graphedge-trip
+(def graph-edge-reactive-edge-impl
+  {:get-graphedge   identity
+   :get-edge        (fn [graph] (:link graph))
+   :add-source-node add-source-node
+   :add-target-node add-target-node})
 
-         new-trip  [node-id edge-id old-graphedge-trip-target]
-         new-trips (union
-                     (difference
-                       (:trips graphedge)
-                       #{old-graphedge-trip})
-                     (difference
-                       (:trips graphnode)
-                       #{old-graphnode-trip})
-                     #{new-trip})
-         new-index (indexes new-nodes new-edges new-trips)]
-       (->GraphEdge edge new-nodes new-edges new-trips new-index)))
-
-(def graph-edge-reactive-graph-impl
-  {:get-graphedge identity
-   :get-edge (fn [graph] (:link graph))
-   :add-source-node add-source-node})
-
-(def default-node-reactive-graph-impl
+(def node-reactive-node-impl
   {:get-graphnode make-graph-node})
 
-(def default-edge-reactive-graph-impl
+(def edge-reactive-edge-impl
   {:get-graphedge make-graph-edge})
 
+;; TODO: DRY
+(defn graph-node-obs-trips-as-src [src]
+  #{[(-> src :link :id) nil nil]})
+(defn graph-node-obs-trips-as-tgt [tgt]
+  #{[(-> tgt :link :id) nil nil]})
+
+(defn graph-node-new-trip-as-src [src]
+  [(-> src :link :id) nil nil])
+(defn graph-node-new-trip-as-tgt [tgt]
+  [nil nil (-> tgt :link :id)])
+
+;; TODO: DRY
+(defn graph-edge-obs-trips-as-src [src]
+  #{(edge-trip src (-> src :link :id))})
+(defn graph-edge-obs-trips-as-tgt [tgt]
+  #{(edge-trip tgt (-> tgt :link :id))})
+
+;; TODO: edge-trip-src
+(defn graph-edge-new-trip-as-src [src]
+  (let [link-id (-> src :link :id)
+        src-id  (-> (edge-trip src link-id) (get 0))]
+    [src-id link-id nil]))
+(defn graph-edge-new-trip-as-tgt [tgt]
+  (let [link-id (-> tgt :link :id)
+        tgt-id  (-> (edge-trip tgt link-id) (get 2))]
+    [nil link-id tgt-id]))
+
+(def graph-node-reactive-graph-impl
+  {:obs-trips-as-src graph-node-obs-trips-as-src
+   :obs-trips-as-tgt graph-node-obs-trips-as-tgt
+   :new-trip-as-src  graph-node-new-trip-as-src
+   :new-trip-as-tgt  graph-node-new-trip-as-tgt})
+
+(def graph-edge-reactive-graph-impl
+  {:obs-trips-as-src graph-edge-obs-trips-as-src
+   :obs-trips-as-tgt graph-edge-obs-trips-as-tgt
+   :new-trip-as-src  graph-edge-new-trip-as-src
+   :new-trip-as-tgt  graph-edge-new-trip-as-tgt})
+
 (extend GraphNode
-  TraversableGraph
-  graph-node-traversable-graph-impl
-  ReactiveNode
-  graph-node-reactive-graph-impl)
+  TraversableGraph graph-node-traversable-graph-impl
+  ReactiveNode     graph-node-reactive-node-impl
+  ReactiveGraph    graph-node-reactive-graph-impl)
 
 (extend GraphEdge
-  TraversableGraph
-  graph-edge-traversable-graph-impl
-  ReactiveEdge
-  graph-edge-reactive-graph-impl)
+  TraversableGraph graph-edge-traversable-graph-impl
+  ReactiveEdge     graph-edge-reactive-edge-impl
+  ReactiveGraph    graph-edge-reactive-graph-impl)
 
 (extend Node
-  PropertyGraphElem
-  default-property-graph-impl
-  ReactiveNode
-  default-node-reactive-graph-impl)
+  PropertyGraphElem default-property-graph-impl
+  ReactiveNode      node-reactive-node-impl)
 
 (extend Edge
-  PropertyGraphElem
-  default-property-graph-impl
-  ReactiveEdge
-  default-edge-reactive-graph-impl)
+  PropertyGraphElem default-property-graph-impl
+  ReactiveEdge      edge-reactive-edge-impl)
 
 ;; rename to Expression ?
 (defrecord Part [tag data])
@@ -425,19 +449,19 @@
 (defmethod graph-reducer
   [zigurat.graph.NodeCode '-]
   [code _]
-  (->NodeCode- code))
+  (->NodeCode- (:code code)))
 (defmethod graph-reducer
   [zigurat.graph.NodeCode '<-]
   [code _]
-  (->NodeCode<- code))
+  (->NodeCode<- (:code code)))
 (defmethod graph-reducer
   [zigurat.graph.EdgeCode '-]
   [code _]
-  (->EdgeCode- code))
+  (->EdgeCode- (:code code)))
 (defmethod graph-reducer
   [zigurat.graph.EdgeCode '->]
   [code _]
-  (->EdgeCode-> code))
+  (->EdgeCode-> (:code code)))
 (defmethod graph-reducer
   [zigurat.graph.EdgeCode- clojure.lang.PersistentList]
   [edge-code- node-body]
