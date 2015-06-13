@@ -51,7 +51,7 @@
 (defrecord GraphNode [link nodes edges trips index])
 (defrecord Edge      [id labels attrs])
 (defrecord Node      [id labels attrs])
-;; Transition states (don't know how to implement this feature yet)
+;; Transition states (don't know how I should implement this feature yet)
 (defrecord EdgeCode   [code])
 (defrecord EdgeCode-  [code])
 (defrecord EdgeCode-> [code])
@@ -63,6 +63,12 @@
 ;; Index Utils
 ;;
 
+(defn single-value [[key vals]]
+  (let [n-vals (count vals)]
+    (if (= 1 n-vals)
+      [key (first vals)]
+      (throw (Exception. (str "Cannot create unique index with " vals))))))
+
 (defn unique-index
   "Creates an unique index using set/index.
 
@@ -71,7 +77,7 @@
   => (unique-index #{[:a :b :c]} [1])
      {{1 :b} [:a :b :c]}"
   [data ks]
-  (into {} (map #(-> [(first %) (first (second %))]) (index data ks))))
+  (into {} (map single-value (index data ks))))
 
 (defn index-elems [elems]
   {:id   (index elems [:id])
