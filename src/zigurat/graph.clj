@@ -1,5 +1,8 @@
 (ns zigurat.graph
-  (:require [clojure.set :refer [index union difference]]))
+  (:require [clojure.set :refer [index union difference]])
+  (:import (clojure.lang Keyword Symbol Cons PersistentList
+                         PersistentArrayMap PersistentHashSet
+                         PersistentVector)))
 
 ;;
 ;; Shared Stuff
@@ -315,7 +318,7 @@
 ;;
 
 (defmulti  sym-or-class class)
-(defmethod sym-or-class clojure.lang.Symbol [sym] sym)
+(defmethod sym-or-class Symbol [sym] sym)
 (defmethod sym-or-class :default [thing] (class thing))
 (defn sym-or-class-map [& body] (vec (map sym-or-class body)))
 
@@ -325,28 +328,13 @@
 ;;
 
 (defmulti  attr-safe-value class)
-(defmethod attr-safe-value
-  clojure.lang.Symbol
-  [sym]
-  `(get-data ~sym))
-(defmethod attr-safe-value
-  clojure.lang.Keyword
-  [kw]
-  kw)
-(defmethod attr-safe-value
-  java.lang.String
-  [txt]
-  txt)
+(defmethod attr-safe-value Symbol  [sym] `(get-data ~sym))
+(defmethod attr-safe-value Keyword [kw]  kw)
+(defmethod attr-safe-value String  [txt] txt)
 
 (defmulti  label-safe-value class)
-(defmethod label-safe-value
-  clojure.lang.Symbol
-  [sym]
-  `(get-data ~sym))
-(defmethod label-safe-value
-  clojure.lang.Keyword
-  [kw]
-  kw)
+(defmethod label-safe-value Symbol  [sym] `(get-data ~sym))
+(defmethod label-safe-value Keyword [kw]  kw)
 
 (defn data-collector [[k v]] [k (attr-safe-value v)])
 
@@ -365,32 +353,25 @@
 ;;
 
 (defmulti  node-reducer class-map)
-(defmethod node-reducer
-  [nil clojure.lang.Keyword]
+(defmethod node-reducer [nil Keyword]
   [_ kw]
   {:labels #{kw}})
-(defmethod node-reducer
-  [clojure.lang.PersistentArrayMap clojure.lang.Keyword]
+(defmethod node-reducer [PersistentArrayMap Keyword]
   [data kw]
   (update-in data [:labels] conj kw))
-(defmethod node-reducer
-  [nil clojure.lang.PersistentHashSet]
+(defmethod node-reducer [nil PersistentHashSet]
   [_ hs]
   {:labels (set (map label-safe-value hs))})
-(defmethod node-reducer
-  [nil clojure.lang.PersistentArrayMap]
+(defmethod node-reducer [nil PersistentArrayMap]
   [_ am]
   {:attrs (into {} (map data-collector am))})
-(defmethod node-reducer
-  [nil clojure.lang.PersistentList]
+(defmethod node-reducer [nil PersistentList]
   [_ ls]
   (read-list ls))
-(defmethod node-reducer
-  [nil clojure.lang.Symbol]
+(defmethod node-reducer [nil Symbol]
   [_ elem]
   `(get-data ~elem))
-(defmethod node-reducer
-  [clojure.lang.PersistentArrayMap clojure.lang.PersistentArrayMap]
+(defmethod node-reducer [PersistentArrayMap PersistentArrayMap]
   [data am]
   (update-in data [:attrs] merge (into {} (map data-collector am))))
 
@@ -402,16 +383,13 @@
 ;;
 
 (defmulti  edge-reducer class-map)
-(defmethod edge-reducer
-  [nil clojure.lang.Symbol]
+(defmethod edge-reducer [nil Symbol]
   [_ sym]
   `(get-data ~sym))
-(defmethod edge-reducer
-  [nil clojure.lang.Keyword]
+(defmethod edge-reducer [nil Keyword]
   [_ kw]
   {:labels #{kw}})
-(defmethod edge-reducer
-  [nil clojure.lang.PersistentHashSet]
+(defmethod edge-reducer [nil PersistentHashSet]
   [_ hs]
   {:labels (set (map label-safe-value hs))})
 
@@ -423,76 +401,56 @@
 ;;
 
 (defmulti  get-node-code class)
-(defmethod get-node-code
-  clojure.lang.PersistentArrayMap
-  [node-params]
-  `(make-node ~node-params))
-(defmethod get-node-code
-  clojure.lang.Cons
-  [code]
-  code)
+(defmethod get-node-code Cons [code] code)
+(defmethod get-node-code PersistentArrayMap
+  [node-params] `(make-node ~node-params))
 
 (defmulti  get-edge-code class)
-(defmethod get-edge-code
-  clojure.lang.PersistentArrayMap
-  [edge-params]
-  `(make-edge ~edge-params))
-(defmethod get-edge-code
-  clojure.lang.Cons
-  [code]
-  code)
+(defmethod get-edge-code Cons [code] code)
+(defmethod get-edge-code PersistentArrayMap
+  [edge-params] `(make-edge ~edge-params))
 
 ;;
 ;; Graph Reducer. TODO: rename to graph-reader.
 ;;
 
 (defmulti  graph-reducer sym-or-class-map)
-(defmethod graph-reducer
-  [nil clojure.lang.PersistentList]
+(defmethod graph-reducer [nil PersistentList]
   [_ node-body]
   (let [node-data (reduce node-reducer nil node-body)]
     (->NodeCode `(get-graphnode ~(get-node-code node-data)))))
-(defmethod graph-reducer
-  [zigurat.graph.NodeCode '-]
+(defmethod graph-reducer [NodeCode '-]
   [code _]
   (->NodeCode- (:code code)))
-(defmethod graph-reducer
-  [zigurat.graph.NodeCode '<-]
+(defmethod graph-reducer [NodeCode '<-]
   [code _]
   (->NodeCode<- (:code code)))
-(defmethod graph-reducer
-  [zigurat.graph.EdgeCode '-]
+(defmethod graph-reducer [EdgeCode '-]
   [code _]
   (->EdgeCode- (:code code)))
-(defmethod graph-reducer
-  [zigurat.graph.EdgeCode '->]
+(defmethod graph-reducer [EdgeCode '->]
   [code _]
   (->EdgeCode-> (:code code)))
-(defmethod graph-reducer
-  [zigurat.graph.EdgeCode- clojure.lang.PersistentList]
+(defmethod graph-reducer [EdgeCode- PersistentList]
   [edge-code- node-body]
   (let [node-data (reduce node-reducer nil node-body)
         node-code `(get-graphnode ~(get-node-code node-data))]
     (->NodeCode `(add-outgoing-edge ~node-code ~(:code edge-code-)))))
-(defmethod graph-reducer
-  [zigurat.graph.NodeCode- clojure.lang.PersistentVector]
+(defmethod graph-reducer [NodeCode- PersistentVector]
   [node-code- edge-body]
   (let [edge-data (reduce edge-reducer nil edge-body)
         edge-code `(get-graphedge ~(get-edge-code edge-data))]
     (->EdgeCode `(add-source-node ~edge-code ~(:code node-code-)))))
-(defmethod graph-reducer
-  [zigurat.graph.NodeCode<- clojure.lang.PersistentVector]
+(defmethod graph-reducer [NodeCode<- PersistentVector]
   [node-code<- edge-body]
   (let [edge-data (reduce edge-reducer nil edge-body)
         edge-code `(get-graphedge ~(get-edge-code edge-data))]
     (->EdgeCode `(add-target-node ~edge-code ~(:code node-code<-)))))
-(defmethod graph-reducer
-  [nil clojure.lang.PersistentVector]
+(defmethod graph-reducer [nil PersistentVector]
   [_ edge-body]
   (let [edge-data (reduce edge-reducer nil edge-body)]
     (->EdgeCode `(get-graphedge ~(get-edge-code edge-data)))))
-(defmethod graph-reducer
-  [zigurat.graph.EdgeCode-> clojure.lang.PersistentList]
+(defmethod graph-reducer [EdgeCode-> PersistentList]
   [edge-> node-body]
   (let [node-data (reduce node-reducer nil node-body)
         node-code `(get-graphnode ~(get-node-code node-data))]
@@ -502,18 +460,10 @@
   (:code (reduce graph-reducer nil code)))
 
 (defmulti  ltr-to-rtl sym-or-class)
-(defmethod ltr-to-rtl clojure.lang.PersistentList
-  [node-code]
-  node-code)
-(defmethod ltr-to-rtl clojure.lang.PersistentVector
-  [edge-code]
-  edge-code)
-(defmethod ltr-to-rtl '-
-  [_]
-  '-)
-(defmethod ltr-to-rtl '->
-  [_]
-  '<-)
+(defmethod ltr-to-rtl PersistentList   [node-code] node-code)
+(defmethod ltr-to-rtl PersistentVector [edge-code] edge-code)
+(defmethod ltr-to-rtl '-  [_] '-)
+(defmethod ltr-to-rtl '-> [_] '<-)
 
 (defn reverse-code [code]
   (rseq (vec (map ltr-to-rtl code))))
