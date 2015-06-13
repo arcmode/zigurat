@@ -15,16 +15,16 @@
 ;;
 
 (defprotocol ReactiveNode
-  (get-graphnode       [elem])
-  (get-node            [elem])
-  (add-outgoing-edge   [elem edge])
-  (add-incoming-edge   [elem edge]))
+  (get-graphnode     [elem])
+  (get-node          [elem])
+  (add-outgoing-edge [elem edge])
+  (add-incoming-edge [elem edge]))
 
 (defprotocol ReactiveEdge
-  (get-graphedge       [elem])
-  (get-edge            [elem])
-  (add-source-node     [elem node])
-  (add-target-node     [elem node]))
+  (get-graphedge   [elem])
+  (get-edge        [elem])
+  (add-source-node [elem node])
+  (add-target-node [elem node]))
 
 (defprotocol ReactiveGraph
   (obs-trips-as-src [graph])
@@ -352,49 +352,49 @@
 ;; Node Reducer
 ;;
 
-(defmulti  node-reducer class-map)
-(defmethod node-reducer [nil Keyword]
+(defmulti  node-reader class-map)
+(defmethod node-reader [nil Keyword]
   [_ kw]
   {:labels #{kw}})
-(defmethod node-reducer [PersistentArrayMap Keyword]
+(defmethod node-reader [PersistentArrayMap Keyword]
   [data kw]
   (update-in data [:labels] conj kw))
-(defmethod node-reducer [nil PersistentHashSet]
+(defmethod node-reader [nil PersistentHashSet]
   [_ hs]
   {:labels (set (map label-safe-value hs))})
-(defmethod node-reducer [nil PersistentArrayMap]
+(defmethod node-reader [nil PersistentArrayMap]
   [_ am]
   {:attrs (into {} (map data-collector am))})
-(defmethod node-reducer [nil PersistentList]
+(defmethod node-reader [nil PersistentList]
   [_ ls]
   (read-list ls))
-(defmethod node-reducer [nil Symbol]
+(defmethod node-reader [nil Symbol]
   [_ elem]
   `(get-data ~elem))
-(defmethod node-reducer [PersistentArrayMap PersistentArrayMap]
+(defmethod node-reader [PersistentArrayMap PersistentArrayMap]
   [data am]
   (update-in data [:attrs] merge (into {} (map data-collector am))))
 
 (defn read-node [body]
-  (reduce node-reducer nil body))
+  (reduce node-reader nil body))
 
 ;;
 ;; Edge Reducer
 ;;
 
-(defmulti  edge-reducer class-map)
-(defmethod edge-reducer [nil Symbol]
+(defmulti  edge-reader class-map)
+(defmethod edge-reader [nil Symbol]
   [_ sym]
-  `(get-data ~sym))
-(defmethod edge-reducer [nil Keyword]
+ `(get-data ~sym))
+(defmethod edge-reader [nil Keyword]
   [_ kw]
   {:labels #{kw}})
-(defmethod edge-reducer [nil PersistentHashSet]
+(defmethod edge-reader [nil PersistentHashSet]
   [_ hs]
   {:labels (set (map label-safe-value hs))})
 
 (defn read-edge [body]
-  (reduce edge-reducer nil body))
+  (reduce edge-reader nil body))
 
 ;;
 ;; Raw Inputs Wrappers
@@ -403,61 +403,66 @@
 (defmulti  get-node-code class)
 (defmethod get-node-code Cons [code] code)
 (defmethod get-node-code PersistentArrayMap
-  [node-params] `(make-node ~node-params))
+  [node-params]
+  `(make-node ~node-params))
 
 (defmulti  get-edge-code class)
 (defmethod get-edge-code Cons [code] code)
 (defmethod get-edge-code PersistentArrayMap
-  [edge-params] `(make-edge ~edge-params))
+  [edge-params]
+  `(make-edge ~edge-params))
 
 ;;
-;; Graph Reducer. TODO: rename to graph-reader.
+;; Graph Reader
 ;;
 
-(defmulti  graph-reducer sym-or-class-map)
-(defmethod graph-reducer [nil PersistentList]
+(defmulti  graph-reader sym-or-class-map)
+(defmethod graph-reader [nil PersistentList]
   [_ node-body]
-  (let [node-data (reduce node-reducer nil node-body)]
+  (let [node-data (reduce node-reader nil node-body)]
     (->NodeCode `(get-graphnode ~(get-node-code node-data)))))
-(defmethod graph-reducer [NodeCode '-]
+(defmethod graph-reader [NodeCode '-]
   [code _]
   (->NodeCode- (:code code)))
-(defmethod graph-reducer [NodeCode '<-]
+(defmethod graph-reader [NodeCode '<-]
   [code _]
   (->NodeCode<- (:code code)))
-(defmethod graph-reducer [EdgeCode '-]
+(defmethod graph-reader [EdgeCode '-]
   [code _]
   (->EdgeCode- (:code code)))
-(defmethod graph-reducer [EdgeCode '->]
+(defmethod graph-reader [EdgeCode '->]
   [code _]
   (->EdgeCode-> (:code code)))
-(defmethod graph-reducer [EdgeCode- PersistentList]
+(defmethod graph-reader [EdgeCode- PersistentList]
   [edge-code- node-body]
-  (let [node-data (reduce node-reducer nil node-body)
+  (let [node-data (reduce node-reader nil node-body)
         node-code `(get-graphnode ~(get-node-code node-data))]
     (->NodeCode `(add-outgoing-edge ~node-code ~(:code edge-code-)))))
-(defmethod graph-reducer [NodeCode- PersistentVector]
+(defmethod graph-reader [NodeCode- PersistentVector]
   [node-code- edge-body]
-  (let [edge-data (reduce edge-reducer nil edge-body)
+  (let [edge-data (reduce edge-reader nil edge-body)
         edge-code `(get-graphedge ~(get-edge-code edge-data))]
     (->EdgeCode `(add-source-node ~edge-code ~(:code node-code-)))))
-(defmethod graph-reducer [NodeCode<- PersistentVector]
+(defmethod graph-reader [NodeCode<- PersistentVector]
   [node-code<- edge-body]
-  (let [edge-data (reduce edge-reducer nil edge-body)
+  (let [edge-data (reduce edge-reader nil edge-body)
         edge-code `(get-graphedge ~(get-edge-code edge-data))]
     (->EdgeCode `(add-target-node ~edge-code ~(:code node-code<-)))))
-(defmethod graph-reducer [nil PersistentVector]
+(defmethod graph-reader [nil PersistentVector]
   [_ edge-body]
-  (let [edge-data (reduce edge-reducer nil edge-body)]
+  (let [edge-data (reduce edge-reader nil edge-body)]
     (->EdgeCode `(get-graphedge ~(get-edge-code edge-data)))))
-(defmethod graph-reducer [EdgeCode-> PersistentList]
+(defmethod graph-reader [EdgeCode-> PersistentList]
   [edge-> node-body]
-  (let [node-data (reduce node-reducer nil node-body)
+  (let [node-data (reduce node-reader nil node-body)
         node-code `(get-graphnode ~(get-node-code node-data))]
     (->NodeCode `(add-outgoing-edge ~node-code ~(:code edge->)))))
 
-(defn read-graph [code]
-  (:code (reduce graph-reducer nil code)))
+(defn read-graph [code] (:code (reduce graph-reader nil code)))
+
+;;
+;; Graph Reader Backward
+;;
 
 (defmulti  ltr-to-rtl sym-or-class)
 (defmethod ltr-to-rtl PersistentList   [node-code] node-code)
