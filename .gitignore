@@ -9,3 +9,5 @@ pom.xml.asc
 /.nrepl-port
 .DS_Store
 doc
+.lein-repl-history
+.lein-failures
