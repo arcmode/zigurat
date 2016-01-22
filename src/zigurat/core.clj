@@ -80,3 +80,10 @@
 
 (def map-eval     (partial map eval))
 (def realize-tree (comp map-eval parse-tree))
+
+
+(clojure.pprint/pprint
+ (parse-tree ["rural schools in Santiago of Chile"]))
+
+(clojure.pprint/pprint
+ (realize-tree ["rural schools in Santiago of Chile"]))
