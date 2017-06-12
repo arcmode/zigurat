@@ -25,7 +25,7 @@
 ;;
 
 ;; Word Functions
-(defwords [jj nns in nnp rbr cd])
+(defwords [jj jjr jjs nn nns nnp in rbr cd dt])
 ;; Punctutaion Functions
 (defwords [comma period colon semicolon])
 
@@ -56,7 +56,9 @@
   ([nnp]         (({:name nnp})))
   ([np pp]       ((np) -[pp]))
   ([np comma pp] ((np) -[pp]))
-  ([qp nns]      ((#{:count} {:val nns}) -[qp])))
+  ([qp nn]       ((#{:count} {:val nn}) -[qp]))
+  ([qp nns]      ((#{:count} {:val nns}) -[qp]))
+  ([dt jj nn nn_2] ((#{jj nn nn_2}))))
 
 (defphrase PP
   "Prepositional Phrases.
@@ -68,11 +70,11 @@
 
 (defphrase QP
   ([rbr in cd]   ([#{q}]-> (#{:number} {:val cd}))
-   [q (join-str-data rbr in)]))
-
-;; (defphrase VP
-;;   ([vbn pp]
-;;    ((#{vb}) -)))
+   [q (join-str-data rbr in)])
+  ([jjr in cd]   ([#{q}]-> (#{:number} {:val cd}))
+   [q (join-str-data jjr in)])
+  ([in jjs cd]   ([#{q}]-> (#{:number} {:val cd}))
+   [q (join-str-data in jjs)]))
 
 ;;
 ;; Parse Tree Evaluation
@@ -81,9 +83,17 @@
 (def map-eval     (partial map eval))
 (def realize-tree (comp map-eval parse-tree))
 
+(clojure.pprint/pprint
+ (parse-tree ["open conversations with a last agent response"]))
 
 (clojure.pprint/pprint
- (parse-tree ["rural schools in Santiago of Chile"]))
+ (realize-tree ["open conversations with more than three participants"]))
+
+(clojure.pprint/pprint
+ (realize-tree ["open conversations with at least one message"]))
 
 (clojure.pprint/pprint
  (realize-tree ["rural schools in Santiago of Chile"]))
+
+(clojure.pprint/pprint
+ (realize-tree ["rural schools in Santiago of Chile , with more than eleven courses"]))

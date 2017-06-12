@@ -9,7 +9,9 @@
 ;;
 
 (def make-phrase-tag
-  (comp (partial keyword "zigurat.grammar") clojure.string/upper-case name))
+  (comp (partial keyword "zigurat.grammar")
+        clojure.string/upper-case
+        #(clojure.string/replace % #"_\d+" "")))
 
 (defn make-method-header-factory
   [mmname]

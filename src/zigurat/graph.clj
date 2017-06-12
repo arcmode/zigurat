@@ -49,7 +49,7 @@
 ;; Semantic Graph Elements
 ;;
 
-;; TODO: renae link to cursor?
+;; TODO: rename link to active-site?
 (defrecord GraphEdge [link nodes edges trips index])
 (defrecord GraphNode [link nodes edges trips index])
 (defrecord Edge      [id labels attrs])
